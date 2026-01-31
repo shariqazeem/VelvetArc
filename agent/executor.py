@@ -62,9 +62,10 @@ class TransactionExecutor:
     async def get_vault_state(self) -> dict:
         """Get current vault state from Arc"""
         try:
-            state = self.vault.functions.currentState().call()
+            state = self.vault.functions.state().call()
             total_deposits = self.vault.functions.totalDeposits().call()
-            balance = self.vault.functions.getVaultBalance().call()
+            # Get vault USDC balance directly
+            balance = self.usdc_arc.functions.balanceOf(CONTRACTS.vault_address).call()
 
             return {
                 "state": state,
@@ -80,17 +81,18 @@ class TransactionExecutor:
         """Get current hook state from Base"""
         try:
             fee = self.hook.functions.dynamicFee().call()
-            volume = self.hook.functions.totalVolume().call()
-            fees_collected = self.hook.functions.feesCollected().call()
+            liquidity = self.hook.functions.totalLiquidity().call()
+            volatility = self.hook.functions.volatilityLevel().call()
 
             return {
                 "dynamic_fee": fee,
-                "total_volume": volume,
-                "fees_collected": fees_collected,
+                "total_liquidity": liquidity,
+                "volatility_level": volatility,
+                "volatility_name": ["LOW", "MEDIUM", "HIGH", "EXTREME"][volatility] if volatility < 4 else "UNKNOWN",
             }
         except Exception as e:
             logger.error("Failed to get hook state", error=str(e))
-            return {"dynamic_fee": 3000, "total_volume": 0, "fees_collected": 0}
+            return {"dynamic_fee": 3000, "total_liquidity": 0, "volatility_level": 0, "volatility_name": "LOW"}
 
     async def get_balances(self) -> dict:
         """Get USDC balances on both chains"""
@@ -290,6 +292,7 @@ class TransactionExecutor:
     async def _execute_fee_adjustment(self, decision: Decision) -> Optional[str]:
         """Adjust dynamic fee on Uniswap V4 hook"""
         new_fee = decision.parameters.get("new_fee_bps", 3000)
+        reason = decision.reasoning[:100] if decision.reasoning else "Market conditions"
 
         logger.info("Executing FEE ADJUSTMENT", new_fee_bps=new_fee)
 
@@ -297,10 +300,10 @@ class TransactionExecutor:
             nonce = self.w3_base.eth.get_transaction_count(self.account.address)
             gas_price = self.w3_base.eth.gas_price
 
-            tx = self.hook.functions.setDynamicFee(new_fee).build_transaction({
+            tx = self.hook.functions.updateDynamicFee(new_fee, reason).build_transaction({
                 'from': self.account.address,
                 'nonce': nonce,
-                'gas': 100000,
+                'gas': 150000,
                 'gasPrice': gas_price,
                 'chainId': BASE_SEPOLIA.chain_id,
             })
@@ -312,6 +315,7 @@ class TransactionExecutor:
                 "FEE ADJUSTMENT transaction sent",
                 tx_hash=tx_hash.hex(),
                 new_fee_bps=new_fee,
+                reason=reason,
             )
 
             return tx_hash.hex()

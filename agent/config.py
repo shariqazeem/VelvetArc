@@ -64,7 +64,7 @@ BRIDGE_TIMEOUT_SECONDS = 300
 VAULT_ABI = [
     {
         "inputs": [],
-        "name": "currentState",
+        "name": "state",
         "outputs": [{"type": "uint8", "name": ""}],
         "stateMutability": "view",
         "type": "function"
@@ -127,21 +127,31 @@ HOOK_ABI = [
     },
     {
         "inputs": [],
-        "name": "totalVolume",
+        "name": "totalLiquidity",
         "outputs": [{"type": "uint256", "name": ""}],
         "stateMutability": "view",
         "type": "function"
     },
     {
         "inputs": [],
-        "name": "feesCollected",
-        "outputs": [{"type": "uint256", "name": ""}],
+        "name": "volatilityLevel",
+        "outputs": [{"type": "uint8", "name": ""}],
         "stateMutability": "view",
         "type": "function"
     },
     {
-        "inputs": [{"type": "uint24", "name": "newFee"}],
-        "name": "setDynamicFee",
+        "inputs": [{"type": "uint8", "name": "newLevel"}],
+        "name": "setVolatilityLevel",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"type": "uint24", "name": "newFee"},
+            {"type": "string", "name": "reason"}
+        ],
+        "name": "updateDynamicFee",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
