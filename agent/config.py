@@ -3,6 +3,7 @@ Velvet Arc Agent Configuration
 """
 import os
 from dataclasses import dataclass
+from typing import Optional
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,7 +15,7 @@ class ChainConfig:
     name: str
     cctp_domain: int
     usdc_address: str
-    token_messenger: str | None = None
+    token_messenger: Optional[str] = None
 
 @dataclass
 class ContractConfig:
