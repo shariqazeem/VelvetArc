@@ -2,11 +2,11 @@
 pragma solidity ^0.8.26;
 
 import {IERC20} from "./interfaces/IERC20.sol";
-import {ITokenMessenger} from "./interfaces/ICCTP.sol";
+import {IGateway} from "./interfaces/IGateway.sol";
 
 /// @title VelvetVault
 /// @notice Home base vault on Circle Arc for the Velvet Agent
-/// @dev Integrates with Circle CCTP for cross-chain USDC transfers
+/// @dev Integrates with Circle Gateway for cross-chain USDC transfers
 /// @author Velvet Arc - ETHGlobal HackMoney 2026
 contract VelvetVault {
     /*//////////////////////////////////////////////////////////////
@@ -15,12 +15,7 @@ contract VelvetVault {
 
     event Deposited(address indexed user, uint256 amount, uint256 shares);
     event Withdrawn(address indexed user, uint256 amount, uint256 shares);
-    event BridgeInitiated(
-        uint64 indexed nonce,
-        uint256 amount,
-        uint32 destinationDomain,
-        bytes32 mintRecipient
-    );
+    event GatewayDeposit(uint256 amount, uint256 destinationChain, bytes32 recipient);
     event BridgeCompleted(uint256 amount, uint256 yieldEarned);
     event AgentUpdated(address indexed oldAgent, address indexed newAgent);
     event StateChanged(VaultState oldState, VaultState newState);
@@ -45,9 +40,9 @@ contract VelvetVault {
 
     enum VaultState {
         IDLE,           // Funds sitting in vault (safe harbor)
-        BRIDGING_OUT,   // CCTP burn initiated, awaiting attestation
+        BRIDGING_OUT,   // Gateway deposit initiated
         DEPLOYED,       // Funds deployed on execution chain
-        BRIDGING_BACK,  // Funds returning via CCTP
+        BRIDGING_BACK,  // Funds returning via Gateway
         PROTECTED       // Emergency state - no outbound allowed
     }
 
@@ -58,10 +53,9 @@ contract VelvetVault {
     }
 
     struct BridgeRecord {
-        uint64 nonce;
         uint256 amount;
-        uint32 destinationDomain;
-        bytes32 mintRecipient;
+        uint256 destinationChain;
+        bytes32 recipient;
         uint256 timestamp;
     }
 
@@ -69,24 +63,24 @@ contract VelvetVault {
                              CONSTANTS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice CCTP Domain ID for Base (mainnet and Sepolia use same domain)
-    uint32 public constant DOMAIN_BASE = 6;
+    /// @notice Chain ID for Base Sepolia
+    uint256 public constant CHAIN_BASE_SEPOLIA = 84532;
 
-    /// @notice CCTP Domain ID for Arc Testnet
-    uint32 public constant DOMAIN_ARC = 26;
+    /// @notice Chain ID for Arc Testnet
+    uint256 public constant CHAIN_ARC_TESTNET = 5042002;
 
-    /// @notice CCTP Domain ID for Ethereum
-    uint32 public constant DOMAIN_ETHEREUM = 0;
+    /// @notice Chain ID for Ethereum Sepolia
+    uint256 public constant CHAIN_ETH_SEPOLIA = 11155111;
 
     /*//////////////////////////////////////////////////////////////
                                  STATE
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice USDC token on Arc (native balance wrapper)
+    /// @notice USDC token on Arc
     IERC20 public immutable USDC;
 
-    /// @notice Circle CCTP TokenMessenger contract on Arc
-    ITokenMessenger public immutable TOKEN_MESSENGER;
+    /// @notice Circle Gateway Wallet Contract on Arc
+    IGateway public immutable GATEWAY;
 
     /// @notice Contract owner (admin)
     address public owner;
@@ -103,7 +97,7 @@ contract VelvetVault {
     /// @notice Total shares issued
     uint256 public totalShares;
 
-    /// @notice Amount currently deployed via CCTP
+    /// @notice Amount currently deployed via Gateway
     uint256 public deployedCapital;
 
     /// @notice Total yield earned across all operations
@@ -114,9 +108,6 @@ contract VelvetVault {
 
     /// @notice User positions
     mapping(address => UserPosition) public positions;
-
-    /// @notice Historical bridge nonces
-    mapping(uint64 => BridgeRecord) public bridgeHistory;
 
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
@@ -141,20 +132,20 @@ contract VelvetVault {
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    /// @param _usdc USDC token address on Arc
-    /// @param _tokenMessenger CCTP TokenMessenger address on Arc
+    /// @param _usdc USDC token address on Arc (0x3600000000000000000000000000000000000000)
+    /// @param _gateway Circle Gateway Wallet address (0x0077777d7EBA4688BDeF3E311b846F25870A19B9)
     /// @param _agent Initial agent address
     constructor(
         address _usdc,
-        address _tokenMessenger,
+        address _gateway,
         address _agent
     ) {
-        if (_usdc == address(0) || _tokenMessenger == address(0) || _agent == address(0)) {
+        if (_usdc == address(0) || _gateway == address(0) || _agent == address(0)) {
             revert ZeroAddress();
         }
 
         USDC = IERC20(_usdc);
-        TOKEN_MESSENGER = ITokenMessenger(_tokenMessenger);
+        GATEWAY = IGateway(_gateway);
         owner = msg.sender;
         agent = _agent;
         state = VaultState.IDLE;
@@ -232,32 +223,29 @@ contract VelvetVault {
                          AGENT BRIDGE FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Initiate CCTP bridge to deploy capital to execution chain
+    /// @notice Deploy capital to execution chain via Circle Gateway
     /// @dev Only callable by agent when vault is IDLE
     /// @param amount Amount of USDC to bridge
-    /// @param destinationDomain CCTP domain ID of destination (e.g., 6 for Base)
-    /// @param mintRecipient Address to receive USDC on destination (as bytes32)
-    /// @return nonce CCTP message nonce for tracking
+    /// @param destinationChain Chain ID of destination (e.g., 84532 for Base Sepolia)
+    /// @param recipient Address to receive USDC on destination (as bytes32)
     function bridgeToExecution(
         uint256 amount,
-        uint32 destinationDomain,
-        bytes32 mintRecipient
-    ) external onlyAgent nonZero(amount) returns (uint64 nonce) {
+        uint256 destinationChain,
+        bytes32 recipient
+    ) external onlyAgent nonZero(amount) {
         if (state != VaultState.IDLE) revert InvalidState();
         if (amount > USDC.balanceOf(address(this))) revert InsufficientBalance();
 
-        // Approve TokenMessenger to spend USDC
-        bool approved = USDC.approve(address(TOKEN_MESSENGER), amount);
+        // Step 1: Approve Gateway to spend USDC
+        bool approved = USDC.approve(address(GATEWAY), amount);
         if (!approved) revert ApprovalFailed();
 
-        // Call CCTP depositForBurn
-        // This burns USDC on Arc and emits event for attestation service
-        nonce = TOKEN_MESSENGER.depositForBurn(
-            amount,
-            destinationDomain,
-            mintRecipient,
-            address(USDC)
-        );
+        // Step 2: Deposit to Gateway - this burns USDC on Arc
+        // and makes it available for minting on destination chain
+        GATEWAY.deposit(address(USDC), amount);
+
+        // Step 3: Transfer via Gateway to destination
+        GATEWAY.transfer(address(USDC), amount, destinationChain, recipient);
 
         // Update state
         VaultState oldState = state;
@@ -266,16 +254,14 @@ contract VelvetVault {
 
         // Record bridge operation
         currentBridge = BridgeRecord({
-            nonce: nonce,
             amount: amount,
-            destinationDomain: destinationDomain,
-            mintRecipient: mintRecipient,
+            destinationChain: destinationChain,
+            recipient: recipient,
             timestamp: block.timestamp
         });
-        bridgeHistory[nonce] = currentBridge;
 
         emit StateChanged(oldState, state);
-        emit BridgeInitiated(nonce, amount, destinationDomain, mintRecipient);
+        emit GatewayDeposit(amount, destinationChain, recipient);
     }
 
     /// @notice Confirm capital has been deployed on execution chain
@@ -301,7 +287,7 @@ contract VelvetVault {
     }
 
     /// @notice Confirm capital has returned to vault
-    /// @dev Called by agent after CCTP mint completes on Arc
+    /// @dev Called by agent after Gateway mint completes on Arc
     /// @param returnedAmount Actual amount returned (may include yield)
     function confirmReturn(uint256 returnedAmount) external onlyAgent {
         if (state != VaultState.BRIDGING_BACK) revert InvalidState();
@@ -422,17 +408,16 @@ contract VelvetVault {
 
     /// @notice Get current bridge operation details
     function getCurrentBridge() external view returns (
-        uint64 nonce,
         uint256 amount,
-        uint32 destinationDomain,
-        bytes32 mintRecipient,
+        uint256 destinationChain,
+        bytes32 recipient,
         uint256 timestamp
     ) {
         BridgeRecord memory br = currentBridge;
-        return (br.nonce, br.amount, br.destinationDomain, br.mintRecipient, br.timestamp);
+        return (br.amount, br.destinationChain, br.recipient, br.timestamp);
     }
 
-    /// @notice Convert address to bytes32 for CCTP
+    /// @notice Convert address to bytes32 for Gateway
     /// @param addr Address to convert
     function addressToBytes32(address addr) external pure returns (bytes32) {
         return bytes32(uint256(uint160(addr)));

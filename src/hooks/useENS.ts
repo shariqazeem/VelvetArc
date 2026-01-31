@@ -1,128 +1,84 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { usePublicClient } from "wagmi";
-import { normalize } from "viem/ens";
+import { useEnsName, useEnsAddress, useEnsAvatar } from "wagmi";
 import { mainnet } from "wagmi/chains";
-import { createPublicClient, http } from "viem";
 
-// ENS is on mainnet - create a dedicated client
-const ensClient = createPublicClient({
-  chain: mainnet,
-  transport: http("https://eth.llamarpc.com"),
-});
+/**
+ * ENS Resolution Hooks for Velvet Arc
+ *
+ * These hooks ALWAYS query Ethereum Mainnet (Chain ID 1) for ENS resolution,
+ * regardless of which chain the user is currently connected to.
+ *
+ * This is important because:
+ * 1. ENS contracts live on Ethereum Mainnet
+ * 2. Users may be on Base/Arc but still have an ENS name
+ * 3. The Agent Identity panel should show ENS names for all users
+ */
 
 /**
  * Resolve ENS name to address
+ * Always queries Ethereum Mainnet
  */
 export function useENSAddress(name: string | undefined) {
-  const [address, setAddress] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { data: address, isLoading, error } = useEnsAddress({
+    name: name,
+    chainId: mainnet.id, // Always query mainnet
+  });
 
-  useEffect(() => {
-    if (!name) {
-      setAddress(null);
-      return;
-    }
-
-    const resolve = async () => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const normalizedName = normalize(name);
-        const resolved = await ensClient.getEnsAddress({
-          name: normalizedName,
-        });
-        setAddress(resolved);
-      } catch (e) {
-        console.error("[ENS] Resolution failed:", e);
-        setError(e instanceof Error ? e.message : "Failed to resolve ENS");
-        setAddress(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    resolve();
-  }, [name]);
-
-  return { address, isLoading, error };
+  return {
+    address: address ?? null,
+    isLoading,
+    error: error ? (error instanceof Error ? error.message : "Failed to resolve ENS") : null,
+  };
 }
 
 /**
  * Resolve address to ENS name (reverse lookup)
+ * Always queries Ethereum Mainnet
  */
 export function useENSName(address: string | undefined) {
-  const [name, setName] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { data: name, isLoading, error } = useEnsName({
+    address: address as `0x${string}` | undefined,
+    chainId: mainnet.id, // Always query mainnet
+  });
 
-  useEffect(() => {
-    if (!address) {
-      setName(null);
-      return;
-    }
-
-    const resolve = async () => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const resolved = await ensClient.getEnsName({
-          address: address as `0x${string}`,
-        });
-        setName(resolved);
-      } catch (e) {
-        console.error("[ENS] Reverse lookup failed:", e);
-        setError(e instanceof Error ? e.message : "Failed to resolve address");
-        setName(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    resolve();
-  }, [address]);
-
-  return { name, isLoading, error };
+  return {
+    name: name ?? null,
+    isLoading,
+    error: error ? (error instanceof Error ? error.message : "Failed to resolve address") : null,
+  };
 }
 
 /**
  * Get ENS avatar URL
+ * Always queries Ethereum Mainnet
  */
 export function useENSAvatar(name: string | undefined) {
-  const [avatar, setAvatar] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const { data: avatar, isLoading } = useEnsAvatar({
+    name: name,
+    chainId: mainnet.id, // Always query mainnet
+  });
 
-  useEffect(() => {
-    if (!name) {
-      setAvatar(null);
-      return;
-    }
+  return {
+    avatar: avatar ?? null,
+    isLoading,
+  };
+}
 
-    const fetchAvatar = async () => {
-      setIsLoading(true);
+/**
+ * Combined hook: Get ENS name and avatar for an address
+ * Useful for the Agent Identity panel
+ */
+export function useENSIdentity(address: string | undefined) {
+  const { name, isLoading: nameLoading, error: nameError } = useENSName(address);
+  const { avatar, isLoading: avatarLoading } = useENSAvatar(name ?? undefined);
 
-      try {
-        const normalizedName = normalize(name);
-        const avatarUrl = await ensClient.getEnsAvatar({
-          name: normalizedName,
-        });
-        setAvatar(avatarUrl);
-      } catch (e) {
-        console.error("[ENS] Avatar fetch failed:", e);
-        setAvatar(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchAvatar();
-  }, [name]);
-
-  return { avatar, isLoading };
+  return {
+    name,
+    avatar,
+    isLoading: nameLoading || avatarLoading,
+    error: nameError,
+  };
 }
 
 /**

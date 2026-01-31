@@ -6,11 +6,11 @@ import {VelvetVault} from "../src/VelvetVault.sol";
 
 contract DeployVault is Script {
     // Arc Testnet addresses
-    // USDC is the native gas token wrapper
+    // USDC is the native gas token wrapper on Arc
     address constant ARC_USDC = 0x3600000000000000000000000000000000000000;
 
-    // CCTP TokenMessenger V2 on Arc Testnet (Domain 26)
-    address constant ARC_TOKEN_MESSENGER = 0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA;
+    // Circle Gateway Wallet Contract on Arc
+    address constant ARC_GATEWAY = 0x0077777d7EBA4688BDeF3E311b846F25870A19B9;
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -23,10 +23,10 @@ contract DeployVault is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Deploy VelvetVault with CCTP integration
+        // Deploy VelvetVault with Circle Gateway integration
         VelvetVault vault = new VelvetVault(
             ARC_USDC,
-            ARC_TOKEN_MESSENGER,
+            ARC_GATEWAY,
             deployer // Agent is deployer initially
         );
 
@@ -34,13 +34,13 @@ contract DeployVault is Script {
         console.log("");
         console.log("Configuration:");
         console.log("  USDC:", ARC_USDC);
-        console.log("  TokenMessenger:", ARC_TOKEN_MESSENGER);
+        console.log("  Gateway:", ARC_GATEWAY);
         console.log("  Agent:", deployer);
         console.log("");
-        console.log("CCTP Domain IDs:");
-        console.log("  Arc:", vault.DOMAIN_ARC());
-        console.log("  Base:", vault.DOMAIN_BASE());
-        console.log("  Ethereum:", vault.DOMAIN_ETHEREUM());
+        console.log("Chain IDs for bridging:");
+        console.log("  Arc Testnet:", vault.CHAIN_ARC_TESTNET());
+        console.log("  Base Sepolia:", vault.CHAIN_BASE_SEPOLIA());
+        console.log("  Ethereum Sepolia:", vault.CHAIN_ETH_SEPOLIA());
 
         vm.stopBroadcast();
 

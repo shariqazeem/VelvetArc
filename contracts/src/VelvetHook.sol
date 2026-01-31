@@ -1,24 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
+import {BaseHook} from "v4-periphery/src/utils/BaseHook.sol";
+import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
+import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
+import {LPFeeLibrary} from "@uniswap/v4-core/src/libraries/LPFeeLibrary.sol";
+import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {IERC20} from "./interfaces/IERC20.sol";
-import {
-    IPoolManager,
-    IHooks,
-    PoolKey,
-    PoolId,
-    SwapParams,
-    BalanceDelta,
-    BeforeSwapDelta,
-    Permissions,
-    LPFeeLibrary
-} from "./interfaces/IUniswapV4.sol";
 
 /// @title VelvetHook
 /// @notice Uniswap V4 Hook with AI-controlled dynamic fees
-/// @dev Deployed on Base, managed by the Velvet Agent
+/// @dev Inherits from BaseHook for proper V4 integration
 /// @author Velvet Arc - ETHGlobal HackMoney 2026
-contract VelvetHook is IHooks {
+contract VelvetHook is BaseHook {
+    using PoolIdLibrary for PoolKey;
     using LPFeeLibrary for uint24;
 
     /*//////////////////////////////////////////////////////////////
@@ -26,6 +25,7 @@ contract VelvetHook is IHooks {
     //////////////////////////////////////////////////////////////*/
 
     event FeeUpdated(uint24 indexed oldFee, uint24 indexed newFee, string reason);
+    event DynamicLPFeeUpdated(PoolId indexed poolId, uint24 newFee);
     event VolatilityUpdated(VolatilityLevel oldLevel, VolatilityLevel newLevel);
     event LiquidityDeposited(address indexed from, uint256 amount);
     event LiquidityWithdrawn(address indexed to, uint256 amount);
@@ -42,7 +42,6 @@ contract VelvetHook is IHooks {
     //////////////////////////////////////////////////////////////*/
 
     error NotAgent();
-    error NotPoolManager();
     error FeeTooHigh();
     error InvalidVolatilityLevel();
     error InsufficientLiquidity();
@@ -86,9 +85,6 @@ contract VelvetHook is IHooks {
                                  STATE
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Uniswap V4 Pool Manager
-    IPoolManager public immutable POOL_MANAGER;
-
     /// @notice USDC token on this chain (Base)
     IERC20 public immutable USDC;
 
@@ -113,6 +109,9 @@ contract VelvetHook is IHooks {
     /// @notice Pool metrics for each pool this hook serves
     mapping(PoolId => PoolMetrics) public poolMetrics;
 
+    /// @notice Registered pool keys for dynamic fee updates
+    mapping(PoolId => PoolKey) public registeredPools;
+
     /// @notice Last fee update timestamp
     uint256 public lastFeeUpdate;
 
@@ -128,11 +127,6 @@ contract VelvetHook is IHooks {
         _;
     }
 
-    modifier onlyPoolManager() {
-        if (msg.sender != address(POOL_MANAGER)) revert NotPoolManager();
-        _;
-    }
-
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
@@ -141,11 +135,10 @@ contract VelvetHook is IHooks {
     /// @param _usdc USDC token address on Base
     /// @param _agent Agent address authorized to update fees
     constructor(
-        address _poolManager,
+        IPoolManager _poolManager,
         address _usdc,
         address _agent
-    ) {
-        POOL_MANAGER = IPoolManager(_poolManager);
+    ) BaseHook(_poolManager) {
         USDC = IERC20(_usdc);
         AGENT = _agent;
         owner = msg.sender;
@@ -165,14 +158,14 @@ contract VelvetHook is IHooks {
     }
 
     /*//////////////////////////////////////////////////////////////
-                         HOOK IMPLEMENTATION
+                         HOOK PERMISSIONS
     //////////////////////////////////////////////////////////////*/
 
     /// @notice Returns the permissions this hook requires
-    function getHookPermissions() external pure override returns (Permissions memory) {
-        return Permissions({
+    function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
+        return Hooks.Permissions({
             beforeInitialize: false,
-            afterInitialize: false,
+            afterInitialize: true,     // To register pool keys
             beforeAddLiquidity: false,
             afterAddLiquidity: false,
             beforeRemoveLiquidity: false,
@@ -188,35 +181,51 @@ contract VelvetHook is IHooks {
         });
     }
 
+    /*//////////////////////////////////////////////////////////////
+                         HOOK IMPLEMENTATION
+    //////////////////////////////////////////////////////////////*/
+
+    /// @notice Called after pool initialization to register pool key
+    function _afterInitialize(
+        address,
+        PoolKey calldata key,
+        uint160,
+        int24
+    ) internal override returns (bytes4) {
+        PoolId poolId = key.toId();
+        registeredPools[poolId] = key;
+        return this.afterInitialize.selector;
+    }
+
     /// @notice Called before each swap - returns the dynamic fee
     /// @dev This is where the AI-controlled fee logic takes effect
-    function beforeSwap(
-        address sender,
-        PoolKey calldata key,
+    function _beforeSwap(
+        address,
+        PoolKey calldata,
         SwapParams calldata params,
-        bytes calldata /* hookData */
-    ) external override onlyPoolManager returns (bytes4, BeforeSwapDelta, uint24) {
+        bytes calldata
+    ) internal override returns (bytes4, BeforeSwapDelta, uint24) {
         // Calculate the fee to apply based on current volatility
         uint24 feeToApply = _calculateFee(params);
 
         // Return the selector, zero delta (no custom accounting), and the fee with override flag
         return (
-            IHooks.beforeSwap.selector,
-            BeforeSwapDelta.wrap(0),
+            this.beforeSwap.selector,
+            BeforeSwapDeltaLibrary.ZERO_DELTA,
             feeToApply | LPFeeLibrary.OVERRIDE_FEE_FLAG
         );
     }
 
     /// @notice Called after each swap - track metrics
-    function afterSwap(
+    function _afterSwap(
         address sender,
         PoolKey calldata key,
         SwapParams calldata params,
-        BalanceDelta delta,
-        bytes calldata /* hookData */
-    ) external override onlyPoolManager returns (bytes4, int128) {
+        BalanceDelta,
+        bytes calldata
+    ) internal override returns (bytes4, int128) {
         // Calculate pool ID
-        PoolId poolId = _toPoolId(key);
+        PoolId poolId = key.toId();
 
         // Update pool metrics
         PoolMetrics storage metrics = poolMetrics[poolId];
@@ -234,7 +243,7 @@ contract VelvetHook is IHooks {
 
         emit SwapProcessed(poolId, sender, params.zeroForOne, params.amountSpecified, dynamicFee);
 
-        return (IHooks.afterSwap.selector, 0);
+        return (this.afterSwap.selector, 0);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -270,6 +279,26 @@ contract VelvetHook is IHooks {
         lastFeeReason = reason;
 
         emit FeeUpdated(oldFee, newFee, reason);
+    }
+
+    /// @notice Update the dynamic LP fee for a specific pool via PoolManager
+    /// @dev This is the production way to update fees - calls poolManager.updateDynamicLPFee
+    /// @param key The pool key to update
+    /// @param newFee The new fee in basis points
+    function updateDynamicLPFee(PoolKey memory key, uint24 newFee) external onlyAgent {
+        if (newFee > MAX_FEE) revert FeeTooHigh();
+        if (newFee < MIN_FEE) newFee = MIN_FEE;
+
+        // Update the fee on the PoolManager
+        poolManager.updateDynamicLPFee(key, newFee);
+
+        // Update local state
+        uint24 oldFee = dynamicFee;
+        dynamicFee = newFee;
+        lastFeeUpdate = block.timestamp;
+
+        emit DynamicLPFeeUpdated(key.toId(), newFee);
+        emit FeeUpdated(oldFee, newFee, "Dynamic LP fee update via PoolManager");
     }
 
     /// @notice Update fee configuration
@@ -373,11 +402,6 @@ contract VelvetHook is IHooks {
         lastFeeReason = reason;
 
         emit FeeUpdated(oldFee, newFee, reason);
-    }
-
-    /// @notice Convert PoolKey to PoolId
-    function _toPoolId(PoolKey calldata key) internal pure returns (PoolId) {
-        return PoolId.wrap(keccak256(abi.encode(key)));
     }
 
     /*//////////////////////////////////////////////////////////////

@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import {Script, console} from "forge-std/Script.sol";
 import {VelvetHook} from "../src/VelvetHook.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 
 contract DeployHook is Script {
     // Base Sepolia addresses
@@ -25,7 +26,7 @@ contract DeployHook is Script {
 
         // Deploy VelvetHook
         VelvetHook hook = new VelvetHook(
-            BASE_POOL_MANAGER,
+            IPoolManager(BASE_POOL_MANAGER),
             BASE_USDC,
             deployer // Agent is deployer initially
         );
