@@ -8,6 +8,7 @@ import { useAccount } from "wagmi";
 import { useVaultData, useHookData, useUserPosition } from "@/hooks/useContracts";
 import { useVelvetStore } from "@/hooks/useVelvetStore";
 import { TerminalLogs } from "@/components/TerminalLogs";
+import { VaultModal } from "@/components/VaultModal";
 
 // Dynamic import for Three.js (no SSR)
 const VelvetOrb = dynamic(
@@ -53,13 +54,15 @@ export default function Home() {
 
   const {
     dynamicFeePercent,
-    feesCollected,
+    volatilityLabel,
     refetch: refetchHook
   } = useHookData();
 
-  const { shares, usdcBalance } = useUserPosition();
+  const { shares, usdcBalance, refetch: refetchUser } = useUserPosition();
 
   const [mounted, setMounted] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [modalMode, setModalMode] = useState<"deposit" | "withdraw">("deposit");
 
   useEffect(() => {
     setMounted(true);
@@ -77,9 +80,10 @@ export default function Home() {
     const interval = setInterval(() => {
       refetchVault();
       refetchHook();
+      refetchUser();
     }, 10000);
     return () => clearInterval(interval);
-  }, [refetchVault, refetchHook]);
+  }, [refetchVault, refetchHook, refetchUser]);
 
   // Agent loop
   useEffect(() => {
@@ -88,6 +92,16 @@ export default function Home() {
     const interval = setInterval(runAgentStep, 4000);
     return () => clearInterval(interval);
   }, [isAgentRunning, runAgentStep]);
+
+  const openDeposit = () => {
+    setModalMode("deposit");
+    setShowModal(true);
+  };
+
+  const openWithdraw = () => {
+    setModalMode("withdraw");
+    setShowModal(true);
+  };
 
   if (!mounted) return <div className="min-h-screen bg-black" />;
 
@@ -99,8 +113,8 @@ export default function Home() {
     return `$${num.toFixed(2)}`;
   };
 
-  // Calculate APY (simulated based on fee + volume)
-  const estimatedAPY = (parseFloat(feesCollected) * 365 * 100 / Math.max(parseFloat(totalDeposits), 1)).toFixed(1);
+  // Calculate APY (simulated based on fee)
+  const estimatedAPY = (parseFloat(dynamicFeePercent) * 12).toFixed(1);
 
   return (
     <main className="min-h-screen bg-black text-white overflow-hidden">
@@ -252,37 +266,71 @@ export default function Home() {
             <div className="w-px h-10 bg-white/10" />
 
             <div className="px-6 py-3">
-              <div className="text-xs text-whisper mb-1 font-mono">ACTIONS</div>
+              <div className="text-xs text-whisper mb-1 font-mono">VOL</div>
               <div className="text-lg font-semibold tabular-nums">
-                {agentState.executionHistory.length}
+                {volatilityLabel}
               </div>
             </div>
 
             <div className="w-px h-10 bg-white/10" />
 
-            {/* Control Button */}
+            {/* User Actions */}
+            {isConnected ? (
+              <div className="flex items-center gap-2 px-2">
+                <button
+                  onClick={openDeposit}
+                  className="btn-primary px-4 py-2 text-sm"
+                >
+                  Deposit
+                </button>
+                <button
+                  onClick={openWithdraw}
+                  disabled={parseFloat(shares) <= 0}
+                  className="btn-ghost px-4 py-2 text-sm disabled:opacity-30"
+                >
+                  Withdraw
+                </button>
+              </div>
+            ) : (
+              <div className="px-4">
+                <ConnectButton.Custom>
+                  {({ openConnectModal }) => (
+                    <button
+                      onClick={openConnectModal}
+                      className="btn-primary px-4 py-2 text-sm"
+                    >
+                      Connect
+                    </button>
+                  )}
+                </ConnectButton.Custom>
+              </div>
+            )}
+
+            <div className="w-px h-10 bg-white/10" />
+
+            {/* Agent Control */}
             <button
               onClick={isAgentRunning ? stopAgent : startAgent}
-              className="btn-primary ml-2 flex items-center gap-3"
+              className="btn-ghost ml-2 flex items-center gap-3 px-4"
             >
               {isAgentRunning ? (
                 <>
-                  <span className="w-2 h-2 rounded-full bg-white animate-pulse-slow" />
-                  <span>Running</span>
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse-slow" />
+                  <span className="text-sm">Live</span>
                 </>
               ) : (
                 <>
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M8 5v14l11-7z" />
                   </svg>
-                  <span>Start</span>
+                  <span className="text-sm">Start</span>
                 </>
               )}
             </button>
           </div>
         </motion.div>
 
-        {/* User Position (if connected) */}
+        {/* User Position Card (if connected and has shares) */}
         {isConnected && parseFloat(shares) > 0 && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -290,8 +338,20 @@ export default function Home() {
             transition={{ duration: 0.8, delay: 0.8 }}
             className="fixed bottom-32 left-1/2 -translate-x-1/2 z-40"
           >
-            <div className="glass-subtle px-4 py-2 text-xs text-ghost">
-              Your Position: {parseFloat(shares).toFixed(2)} shares
+            <div className="glass-subtle px-6 py-3 rounded-xl flex items-center gap-6">
+              <div>
+                <div className="text-xs text-ghost mb-1">Your Position</div>
+                <div className="text-lg font-semibold tabular-nums">
+                  {parseFloat(shares).toFixed(2)} shares
+                </div>
+              </div>
+              <div className="w-px h-8 bg-white/10" />
+              <div>
+                <div className="text-xs text-ghost mb-1">Value</div>
+                <div className="text-lg font-semibold tabular-nums text-green-400">
+                  ~${parseFloat(shares).toFixed(2)}
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
@@ -321,6 +381,13 @@ export default function Home() {
           </span>
         </motion.div>
       </div>
+
+      {/* Vault Modal */}
+      <VaultModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        mode={modalMode}
+      />
     </main>
   );
 }

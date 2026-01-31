@@ -1,5 +1,5 @@
-import { http, createConfig } from "wagmi";
-import { base, baseSepolia } from "wagmi/chains";
+import { http } from "wagmi";
+import { baseSepolia } from "wagmi/chains";
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
 
 // Arc Testnet chain definition
@@ -43,11 +43,11 @@ export const config = getDefaultConfig({
   ssr: true,
 });
 
-// Vault ABI (minimal for reading)
+// Vault ABI - matching actual VelvetVault.sol
 export const VAULT_ABI = [
   {
     inputs: [],
-    name: "currentState",
+    name: "state",
     outputs: [{ type: "uint8", name: "" }],
     stateMutability: "view",
     type: "function",
@@ -55,13 +55,6 @@ export const VAULT_ABI = [
   {
     inputs: [],
     name: "totalDeposits",
-    outputs: [{ type: "uint256", name: "" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "getVaultBalance",
     outputs: [{ type: "uint256", name: "" }],
     stateMutability: "view",
     type: "function",
@@ -76,6 +69,13 @@ export const VAULT_ABI = [
   {
     inputs: [],
     name: "agent",
+    outputs: [{ type: "address", name: "" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "owner",
     outputs: [{ type: "address", name: "" }],
     stateMutability: "view",
     type: "function",
@@ -101,9 +101,23 @@ export const VAULT_ABI = [
     stateMutability: "nonpayable",
     type: "function",
   },
+  {
+    inputs: [{ type: "uint256", name: "shares" }],
+    name: "previewWithdraw",
+    outputs: [{ type: "uint256", name: "" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ type: "uint256", name: "amount" }],
+    name: "previewDeposit",
+    outputs: [{ type: "uint256", name: "" }],
+    stateMutability: "view",
+    type: "function",
+  },
 ] as const;
 
-// Hook ABI (minimal for reading)
+// Hook ABI - matching actual VelvetHook.sol
 export const HOOK_ABI = [
   {
     inputs: [],
@@ -114,15 +128,49 @@ export const HOOK_ABI = [
   },
   {
     inputs: [],
-    name: "totalVolume",
+    name: "totalLiquidity",
     outputs: [{ type: "uint256", name: "" }],
     stateMutability: "view",
     type: "function",
   },
   {
     inputs: [],
-    name: "feesCollected",
+    name: "volatilityLevel",
+    outputs: [{ type: "uint8", name: "" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "lastFeeUpdate",
     outputs: [{ type: "uint256", name: "" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "lastFeeReason",
+    outputs: [{ type: "string", name: "" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "AGENT",
+    outputs: [{ type: "address", name: "" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "getHookStatus",
+    outputs: [
+      { type: "uint24", name: "currentFee" },
+      { type: "uint8", name: "currentVolatility" },
+      { type: "uint256", name: "liquidity" },
+      { type: "uint256", name: "lastUpdate" },
+      { type: "string", name: "feeReason" },
+    ],
     stateMutability: "view",
     type: "function",
   },
@@ -143,6 +191,26 @@ export const ERC20_ABI = [
       { type: "uint256", name: "amount" },
     ],
     name: "approve",
+    outputs: [{ type: "bool", name: "" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { type: "address", name: "owner" },
+      { type: "address", name: "spender" },
+    ],
+    name: "allowance",
+    outputs: [{ type: "uint256", name: "" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { type: "address", name: "to" },
+      { type: "uint256", name: "amount" },
+    ],
+    name: "transfer",
     outputs: [{ type: "bool", name: "" }],
     stateMutability: "nonpayable",
     type: "function",
