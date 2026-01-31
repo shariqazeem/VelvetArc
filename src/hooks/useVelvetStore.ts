@@ -30,6 +30,7 @@ interface VelvetStore {
   setWallet: (address: string | null, chainId: number | null) => void;
   setVaultState: (state: number) => void;
   setDeposits: (total: string, user: string, shares: string) => void;
+  syncVaultData: (totalDeposits: string, userShares: string) => void;
   startAgent: () => void;
   stopAgent: () => void;
   runAgentStep: () => Promise<void>;
@@ -96,11 +97,28 @@ export const useVelvetStore = create<VelvetStore>((set, get) => ({
 
   startAgent: () => {
     const state = get();
+    // Initialize with actual vault balance
+    const vaultBalance = parseFloat(state.totalDeposits) * 1_000_000 || 1_000_000;
     set({
       isAgentRunning: true,
       agentState: {
         ...state.agentState,
         isRunning: true,
+        vaultBalance,
+      },
+    });
+  },
+
+  // Sync vault data from on-chain
+  syncVaultData: (totalDeposits: string, userShares: string) => {
+    const state = get();
+    const vaultBalance = parseFloat(totalDeposits) * 1_000_000 || 0;
+    set({
+      totalDeposits,
+      userShares,
+      agentState: {
+        ...state.agentState,
+        vaultBalance,
       },
     });
   },

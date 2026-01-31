@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAccount, useSwitchChain } from "wagmi";
 import { useUserPosition, useApprove, useDeposit, useWithdraw } from "@/hooks/useContracts";
@@ -14,11 +14,15 @@ interface VaultModalProps {
 
 export function VaultModal({ isOpen, onClose, mode }: VaultModalProps) {
   const { address, isConnected, chainId } = useAccount();
-  const { switchChain } = useSwitchChain();
-  const { usdcBalance, shares, allowanceRaw, refetch } = useUserPosition();
+  const { switchChainAsync, isPending: isSwitching, error: switchError } = useSwitchChain();
+  const { usdcBalance, shares, allowanceRaw, refetch, isLoading: isLoadingPosition } = useUserPosition();
   const [amount, setAmount] = useState("");
   const [step, setStep] = useState<"input" | "switching" | "approving" | "executing" | "success" | "error">("input");
   const [errorMessage, setErrorMessage] = useState("");
+
+  // Track pending action after chain switch
+  const [pendingAction, setPendingAction] = useState<"deposit" | "withdraw" | null>(null);
+  const pendingAmountRef = useRef<string>("");
 
   // Check if on correct chain
   const isCorrectChain = chainId === arcTestnet.id;
@@ -48,12 +52,21 @@ export function VaultModal({ isOpen, onClose, mode }: VaultModalProps) {
     reset: resetWithdraw,
   } = useWithdraw();
 
+  // Refetch data when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      refetch();
+    }
+  }, [isOpen, refetch]);
+
   // Reset on close
   useEffect(() => {
     if (!isOpen) {
       setAmount("");
       setStep("input");
       setErrorMessage("");
+      setPendingAction(null);
+      pendingAmountRef.current = "";
       resetApprove();
       resetDeposit();
       resetWithdraw();
@@ -80,14 +93,70 @@ export function VaultModal({ isOpen, onClose, mode }: VaultModalProps) {
 
   // Handle errors
   useEffect(() => {
-    const error = approveError || depositError || withdrawError;
+    const error = approveError || depositError || withdrawError || switchError;
     if (error) {
       setStep("error");
       setErrorMessage(error.message || "Transaction failed");
+      setPendingAction(null);
     }
-  }, [approveError, depositError, withdrawError]);
+  }, [approveError, depositError, withdrawError, switchError]);
+
+  // Execute pending action when chain switches to correct chain
+  useEffect(() => {
+    if (isCorrectChain && pendingAction && step === "switching") {
+      const savedAmount = pendingAmountRef.current;
+      setPendingAction(null);
+
+      if (pendingAction === "deposit") {
+        const amountWei = BigInt(Math.floor(parseFloat(savedAmount) * 1e6));
+        const currentAllowance = allowanceRaw ?? BigInt(0);
+
+        if (currentAllowance < amountWei) {
+          setStep("approving");
+          approve(savedAmount);
+        } else {
+          setStep("executing");
+          deposit(savedAmount);
+        }
+      } else if (pendingAction === "withdraw") {
+        setStep("executing");
+        withdraw(savedAmount);
+      }
+    }
+  }, [isCorrectChain, pendingAction, step, allowanceRaw, approve, deposit, withdraw]);
 
   const maxAmount = mode === "deposit" ? usdcBalance : shares;
+
+  // Manual network add for wallets that don't auto-add
+  // Note: MetaMask requires 18 decimals for native currency
+  const addArcNetwork = async () => {
+    if (typeof window === "undefined" || !window.ethereum) return;
+
+    try {
+      await window.ethereum.request({
+        method: "wallet_addEthereumChain",
+        params: [{
+          chainId: "0x4CF812", // 5042002 in hex
+          chainName: "Arc Testnet",
+          nativeCurrency: {
+            name: "USDC",
+            symbol: "USDC",
+            decimals: 18, // MetaMask requires 18, actual USDC uses 6
+          },
+          rpcUrls: ["https://rpc.testnet.arc.network"],
+          blockExplorerUrls: ["https://testnet.arcscan.app"],
+        }],
+      });
+
+      // After adding, try to switch
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: "0x4CF812" }],
+      });
+    } catch (error) {
+      console.error("Failed to add network:", error);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!amount || parseFloat(amount) <= 0) return;
@@ -97,17 +166,27 @@ export function VaultModal({ isOpen, onClose, mode }: VaultModalProps) {
     // Switch to Arc Testnet if needed
     if (!isCorrectChain) {
       setStep("switching");
+      pendingAmountRef.current = amount;
+      setPendingAction(mode);
       try {
-        await switchChain({ chainId: arcTestnet.id });
-        // Wait a moment for chain to switch
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      } catch (e) {
+        // Use switchChainAsync which returns a promise
+        await switchChainAsync({ chainId: arcTestnet.id });
+        // Chain switched successfully - useEffect will handle the rest
+        // when chainId updates in React state
+        return;
+      } catch (e: unknown) {
+        console.error("Chain switch failed:", e);
         setStep("error");
-        setErrorMessage("Please switch to Arc Testnet in your wallet");
+        const errorMsg = e instanceof Error ? e.message : "Chain switch failed";
+        setErrorMessage(errorMsg.includes("rejected")
+          ? "Chain switch was rejected"
+          : "Please add Arc Testnet to your wallet and try again");
+        setPendingAction(null);
         return;
       }
     }
 
+    // Already on correct chain, execute directly
     if (mode === "deposit") {
       const amountWei = BigInt(Math.floor(parseFloat(amount) * 1e6));
       const currentAllowance = allowanceRaw ?? BigInt(0);
@@ -189,7 +268,11 @@ export function VaultModal({ isOpen, onClose, mode }: VaultModalProps) {
                       {mode === "deposit" ? "Available" : "Your Shares"}
                     </span>
                     <span className="text-whisper font-mono">
-                      {parseFloat(maxAmount).toFixed(2)} {mode === "deposit" ? "USDC" : "shares"}
+                      {isLoadingPosition ? (
+                        <span className="animate-pulse">Loading...</span>
+                      ) : (
+                        `${parseFloat(maxAmount).toFixed(2)} ${mode === "deposit" ? "USDC" : "shares"}`
+                      )}
                     </span>
                   </div>
 
@@ -217,11 +300,18 @@ export function VaultModal({ isOpen, onClose, mode }: VaultModalProps) {
                     <span className="text-ghost">Network</span>
                     <span className="text-whisper">Arc Testnet</span>
                   </div>
-                  {mode === "deposit" && (
+                  {mode === "deposit" ? (
                     <div className="flex justify-between text-sm mt-2">
                       <span className="text-ghost">You receive</span>
                       <span className="text-whisper font-mono">
                         ~{amount || "0"} shares
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="flex justify-between text-sm mt-2">
+                      <span className="text-ghost">You receive</span>
+                      <span className="text-whisper font-mono">
+                        ~{amount || "0"} USDC
                       </span>
                     </div>
                   )}
@@ -242,7 +332,24 @@ export function VaultModal({ isOpen, onClose, mode }: VaultModalProps) {
               <div className="text-center py-8">
                 <div className="w-12 h-12 border-2 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-4" />
                 <p className="text-lg mb-2">Switching to Arc Testnet...</p>
-                <p className="text-sm text-ghost">Please approve in your wallet</p>
+                <p className="text-sm text-ghost mb-4">Please approve the network switch in your wallet</p>
+                <div className="flex gap-3 justify-center mt-4">
+                  <button
+                    onClick={addArcNetwork}
+                    className="text-xs bg-white/10 hover:bg-white/20 px-3 py-2 rounded transition-colors"
+                  >
+                    Add Network Manually
+                  </button>
+                  <button
+                    onClick={() => {
+                      setStep("input");
+                      setPendingAction(null);
+                    }}
+                    className="text-xs text-ghost hover:text-white px-3 py-2"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             )}
 
@@ -272,13 +379,24 @@ export function VaultModal({ isOpen, onClose, mode }: VaultModalProps) {
                   </svg>
                 </div>
                 <p className="text-lg mb-2">Success!</p>
-                <p className="text-sm text-ghost mb-6">
+                <p className="text-sm text-ghost mb-2">
                   {mode === "deposit"
                     ? `Deposited ${amount} USDC into the vault`
                     : `Withdrew ${amount} shares from the vault`}
                 </p>
-                <button onClick={onClose} className="btn-ghost">
-                  Close
+                <p className="text-xs text-ghost mb-6">
+                  {mode === "deposit"
+                    ? `You received ~${amount} vault shares`
+                    : `You received ~${amount} USDC`}
+                </p>
+                <button
+                  onClick={() => {
+                    refetch();
+                    onClose();
+                  }}
+                  className="btn-primary px-6 py-2"
+                >
+                  Done
                 </button>
               </div>
             )}
@@ -298,6 +416,7 @@ export function VaultModal({ isOpen, onClose, mode }: VaultModalProps) {
                   onClick={() => {
                     setStep("input");
                     setErrorMessage("");
+                    setPendingAction(null);
                     resetApprove();
                     resetDeposit();
                     resetWithdraw();
