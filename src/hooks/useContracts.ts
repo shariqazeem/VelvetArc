@@ -107,10 +107,11 @@ export function useHookData() {
 export function useUserPosition() {
   const { address } = useAccount();
 
-  const { data: shares, isLoading: sharesLoading, refetch: refetchShares } = useReadContract({
+  // Get user position from contract (depositedAmount, shareBalance, currentValue, lastDeposit)
+  const { data: position, isLoading: positionLoading, refetch: refetchPosition } = useReadContract({
     address: CONTRACTS.vault,
     abi: VAULT_ABI,
-    functionName: "shares",
+    functionName: "getUserPosition",
     args: address ? [address] : undefined,
     chainId: arcTestnet.id,
     query: {
@@ -141,15 +142,21 @@ export function useUserPosition() {
   });
 
   const refetch = useCallback(() => {
-    refetchShares();
+    refetchPosition();
     refetchBalance();
     refetchAllowance();
-  }, [refetchShares, refetchBalance, refetchAllowance]);
+  }, [refetchPosition, refetchBalance, refetchAllowance]);
+
+  // Parse position tuple: [depositedAmount, shareBalance, currentValue, lastDeposit]
+  const positionData = position as [bigint, bigint, bigint, bigint] | undefined;
+  const sharesRaw = positionData?.[1];
+  const currentValue = positionData?.[2];
 
   return {
-    isLoading: sharesLoading || balanceLoading,
-    shares: shares ? formatUnits(shares as bigint, 6) : "0",
-    sharesRaw: shares as bigint | undefined,
+    isLoading: positionLoading || balanceLoading,
+    shares: sharesRaw ? formatUnits(sharesRaw, 6) : "0",
+    sharesRaw: sharesRaw,
+    shareValue: currentValue ? formatUnits(currentValue, 6) : "0",
     usdcBalance: usdcBalance ? formatUnits(usdcBalance as bigint, 6) : "0",
     usdcBalanceRaw: usdcBalance as bigint | undefined,
     allowance: allowance ? formatUnits(allowance as bigint, 6) : "0",

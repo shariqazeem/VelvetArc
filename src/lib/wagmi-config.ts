@@ -1,25 +1,27 @@
 import { http } from "wagmi";
 import { baseSepolia } from "wagmi/chains";
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
+import { defineChain } from "viem";
 
-// Arc Testnet chain definition
-export const arcTestnet = {
+// Arc Testnet chain definition using viem's defineChain for proper typing
+// Note: MetaMask requires 18 decimals for native currency, even though Arc uses USDC (6 decimals)
+// The actual USDC transactions still use 6 decimals - this is just for wallet compatibility
+export const arcTestnet = defineChain({
   id: 5042002,
   name: "Arc Testnet",
   nativeCurrency: {
-    decimals: 6,
+    decimals: 18,
     name: "USDC",
     symbol: "USDC",
   },
   rpcUrls: {
     default: { http: ["https://rpc.testnet.arc.network"] },
-    public: { http: ["https://rpc.testnet.arc.network"] },
   },
   blockExplorers: {
     default: { name: "ArcScan", url: "https://testnet.arcscan.app" },
   },
   testnet: true,
-} as const;
+});
 
 // Contract addresses
 export const CONTRACTS = {
@@ -80,10 +82,16 @@ export const VAULT_ABI = [
     stateMutability: "view",
     type: "function",
   },
+  // getUserPosition returns all user data
   {
     inputs: [{ type: "address", name: "user" }],
-    name: "shares",
-    outputs: [{ type: "uint256", name: "" }],
+    name: "getUserPosition",
+    outputs: [
+      { type: "uint256", name: "depositedAmount" },
+      { type: "uint256", name: "shareBalance" },
+      { type: "uint256", name: "currentValue" },
+      { type: "uint256", name: "lastDeposit" },
+    ],
     stateMutability: "view",
     type: "function",
   },
@@ -95,23 +103,25 @@ export const VAULT_ABI = [
     type: "function",
   },
   {
-    inputs: [{ type: "uint256", name: "shareAmount" }],
+    inputs: [{ type: "uint256", name: "sharesToRedeem" }],
     name: "withdraw",
-    outputs: [{ type: "uint256", name: "amountOut" }],
+    outputs: [{ type: "uint256", name: "amount" }],
     stateMutability: "nonpayable",
     type: "function",
   },
+  // getVaultStats for comprehensive data
   {
-    inputs: [{ type: "uint256", name: "shares" }],
-    name: "previewWithdraw",
-    outputs: [{ type: "uint256", name: "" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [{ type: "uint256", name: "amount" }],
-    name: "previewDeposit",
-    outputs: [{ type: "uint256", name: "" }],
+    inputs: [],
+    name: "getVaultStats",
+    outputs: [
+      { type: "uint8", name: "currentState" },
+      { type: "uint256", name: "totalDeposited" },
+      { type: "uint256", name: "totalSharesIssued" },
+      { type: "uint256", name: "currentlyDeployed" },
+      { type: "uint256", name: "availableBalance" },
+      { type: "uint256", name: "yieldEarned" },
+      { type: "uint256", name: "sharePrice" },
+    ],
     stateMutability: "view",
     type: "function",
   },
