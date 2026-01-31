@@ -1,0 +1,28 @@
+# Velvet Arc AI Agent Dependencies
+
+# Web3 / Blockchain
+web3>=6.15.0
+eth-account>=0.11.0
+eth-abi>=5.0.0
+
+# HTTP / API
+httpx>=0.27.0
+aiohttp>=3.9.0
+websockets>=12.0
+
+# Data Processing
+pandas>=2.2.0
+numpy>=1.26.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# Async
+asyncio-throttle>=1.0.0
+
+# Logging
+structlog>=24.1.0
+rich>=13.7.0
+
+# Optional: LI.FI SDK (if available)
+# lifi-sdk>=1.0.0
