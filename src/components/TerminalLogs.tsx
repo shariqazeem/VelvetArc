@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useVelvetStore } from "@/hooks/useVelvetStore";
+import { useAccount } from "wagmi";
+import { useVaultData, useUserPosition } from "@/hooks/useContracts";
 
 interface LogEntry {
   id: number;
@@ -12,9 +14,52 @@ interface LogEntry {
 
 export function TerminalLogs() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const { agentState, isAgentRunning } = useVelvetStore();
+  const { agentState, isAgentRunning, vaultState } = useVelvetStore();
+  const { isConnected } = useAccount();
+  const { shares } = useUserPosition();
+  const { vaultBalance } = useVaultData();
   const logIdRef = useRef(0);
   const lastActionRef = useRef<string | null>(null);
+  const hasShownIntroRef = useRef(false);
+
+  // Show intro logs when user has deposited but agent not running
+  useEffect(() => {
+    if (hasShownIntroRef.current) return;
+    if (!isConnected || parseFloat(shares) <= 0) return;
+    if (isAgentRunning) return;
+
+    hasShownIntroRef.current = true;
+
+    const introLogs: LogEntry[] = [
+      {
+        id: logIdRef.current++,
+        text: `VAULT: $${parseFloat(vaultBalance).toFixed(2)} TVL`,
+        type: "success",
+        timestamp: Date.now(),
+      },
+      {
+        id: logIdRef.current++,
+        text: "POSITION DETECTED",
+        type: "info",
+        timestamp: Date.now() + 100,
+      },
+      {
+        id: logIdRef.current++,
+        text: "AWAITING AGENT START...",
+        type: "warning",
+        timestamp: Date.now() + 200,
+      },
+    ];
+
+    setLogs(introLogs);
+  }, [isConnected, shares, vaultBalance, isAgentRunning]);
+
+  // Reset intro flag when agent starts
+  useEffect(() => {
+    if (isAgentRunning) {
+      hasShownIntroRef.current = true;
+    }
+  }, [isAgentRunning]);
 
   // Generate logs based on agent state
   useEffect(() => {
@@ -29,12 +74,12 @@ export function TerminalLogs() {
 
     const newLogs: LogEntry[] = [];
 
-    // State-based logs
+    // State-based logs with sponsor integrations highlighted
     switch (currentState) {
       case "SCANNING":
         newLogs.push({
           id: logIdRef.current++,
-          text: "SCANNING VOLATILITY...",
+          text: "SCANNING MARKET CONDITIONS...",
           type: "info",
           timestamp: Date.now(),
         });
@@ -44,10 +89,22 @@ export function TerminalLogs() {
         if (lastConditions) {
           newLogs.push({
             id: logIdRef.current++,
-            text: `VOL_INDEX: ${lastConditions.volatilityIndex} [${lastConditions.volatility}]`,
+            text: `ETH 24H: ${lastConditions.priceChange24h?.toFixed(2) || "0"}%`,
+            type: lastConditions.priceChange24h > 0 ? "success" : "warning",
+            timestamp: Date.now(),
+          });
+          newLogs.push({
+            id: logIdRef.current++,
+            text: `VOL: ${lastConditions.volatilityIndex?.toFixed(0) || "0"} [${lastConditions.volatility}]`,
             type: lastConditions.volatility === "LOW" ? "success" :
                   lastConditions.volatility === "HIGH" ? "warning" : "info",
-            timestamp: Date.now(),
+            timestamp: Date.now() + 50,
+          });
+          newLogs.push({
+            id: logIdRef.current++,
+            text: `GAS: ${lastConditions.gasPrice?.toFixed(0) || "30"} gwei`,
+            type: "info",
+            timestamp: Date.now() + 100,
           });
         }
         break;
@@ -55,37 +112,49 @@ export function TerminalLogs() {
       case "BRIDGING_TO_BASE":
         newLogs.push({
           id: logIdRef.current++,
-          text: "BRIDGE DETECTED... [LI.FI]",
-          type: "info",
+          text: "DEPLOYING TO BASE...",
+          type: "warning",
           timestamp: Date.now(),
         });
         newLogs.push({
           id: logIdRef.current++,
-          text: "CCTP BURN INITIATED",
-          type: "warning",
+          text: "[CIRCLE CCTP] BURN TX",
+          type: "info",
           timestamp: Date.now() + 100,
+        });
+        newLogs.push({
+          id: logIdRef.current++,
+          text: "[LI.FI] ROUTING...",
+          type: "info",
+          timestamp: Date.now() + 200,
         });
         break;
 
       case "FARMING":
         newLogs.push({
           id: logIdRef.current++,
-          text: "YIELD ACTIVE [UNISWAP V4]",
+          text: "[UNISWAP V4] HOOK ACTIVE",
           type: "success",
           timestamp: Date.now(),
+        });
+        newLogs.push({
+          id: logIdRef.current++,
+          text: "YIELD GENERATING...",
+          type: "success",
+          timestamp: Date.now() + 100,
         });
         break;
 
       case "BRIDGING_TO_ARC":
         newLogs.push({
           id: logIdRef.current++,
-          text: "WITHDRAWAL INITIATED",
+          text: "PROTECTING CAPITAL...",
           type: "warning",
           timestamp: Date.now(),
         });
         newLogs.push({
           id: logIdRef.current++,
-          text: "RETURNING TO ARC...",
+          text: "[CIRCLE ARC] RETURN TX",
           type: "info",
           timestamp: Date.now() + 100,
         });
@@ -94,13 +163,13 @@ export function TerminalLogs() {
       case "CIRCUIT_BREAKER":
         newLogs.push({
           id: logIdRef.current++,
-          text: "⚠ CIRCUIT BREAKER",
+          text: "⚠ CIRCUIT BREAKER TRIGGERED",
           type: "error",
           timestamp: Date.now(),
         });
         newLogs.push({
           id: logIdRef.current++,
-          text: "EMERGENCY EXIT COMPLETE",
+          text: "EMERGENCY EXIT TO ARC",
           type: "error",
           timestamp: Date.now() + 100,
         });
@@ -110,7 +179,7 @@ export function TerminalLogs() {
         if (lastDecision?.action === "HOLD") {
           newLogs.push({
             id: logIdRef.current++,
-            text: "HOLDING... [SAFE HARBOR]",
+            text: "[CIRCLE ARC] SAFE HARBOR",
             type: "info",
             timestamp: Date.now(),
           });

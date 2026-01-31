@@ -42,6 +42,7 @@ export default function Home() {
     stopAgent,
     runAgentStep,
     setVaultState,
+    syncVaultData,
   } = useVelvetStore();
 
   // On-chain data
@@ -58,7 +59,7 @@ export default function Home() {
     refetch: refetchHook
   } = useHookData();
 
-  const { shares, usdcBalance, refetch: refetchUser } = useUserPosition();
+  const { shares, shareValue, usdcBalance, refetch: refetchUser } = useUserPosition();
 
   const [mounted, setMounted] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -68,12 +69,30 @@ export default function Home() {
     setMounted(true);
   }, []);
 
+  // Refresh all data when modal closes
+  const handleModalClose = () => {
+    setShowModal(false);
+    // Refresh all data after any transaction
+    setTimeout(() => {
+      refetchVault();
+      refetchHook();
+      refetchUser();
+    }, 1000);
+  };
+
   // Sync on-chain state with store
   useEffect(() => {
     if (currentState !== undefined) {
       setVaultState(currentState);
     }
   }, [currentState, setVaultState]);
+
+  // Sync vault data with store for agent
+  useEffect(() => {
+    if (vaultBalance && shares) {
+      syncVaultData(vaultBalance, shares);
+    }
+  }, [vaultBalance, shares, syncVaultData]);
 
   // Refresh on-chain data periodically
   useEffect(() => {
@@ -237,67 +256,67 @@ export default function Home() {
           className="floating-dock"
         >
           <div className="glass inner-glow px-2 py-2 flex items-center gap-1">
-            {/* Stats */}
-            <div className="px-6 py-3">
-              <div className="text-xs text-whisper mb-1 font-mono">TVL</div>
-              <div className="text-lg font-semibold tabular-nums">
+            {/* Stats - Compact */}
+            <div className="px-4 py-2">
+              <div className="text-[10px] text-whisper mb-0.5 font-mono">TVL</div>
+              <div className="text-base font-semibold tabular-nums">
                 {formatUSD(vaultBalance)}
               </div>
             </div>
 
-            <div className="w-px h-10 bg-white/10" />
+            <div className="w-px h-8 bg-white/10" />
 
-            <div className="px-6 py-3">
-              <div className="text-xs text-whisper mb-1 font-mono">APY</div>
-              <div className="text-lg font-semibold tabular-nums text-green-400">
+            <div className="px-4 py-2">
+              <div className="text-[10px] text-whisper mb-0.5 font-mono">APY</div>
+              <div className="text-base font-semibold tabular-nums text-green-400">
                 {estimatedAPY}%
               </div>
             </div>
 
-            <div className="w-px h-10 bg-white/10" />
+            <div className="w-px h-8 bg-white/10" />
 
-            <div className="px-6 py-3">
-              <div className="text-xs text-whisper mb-1 font-mono">FEE</div>
-              <div className="text-lg font-semibold tabular-nums">
+            <div className="px-3 py-2">
+              <div className="text-[10px] text-whisper mb-0.5 font-mono">FEE</div>
+              <div className="text-base font-semibold tabular-nums">
                 {dynamicFeePercent}%
               </div>
             </div>
 
-            <div className="w-px h-10 bg-white/10" />
+            <div className="w-px h-8 bg-white/10" />
 
-            <div className="px-6 py-3">
-              <div className="text-xs text-whisper mb-1 font-mono">VOL</div>
-              <div className="text-lg font-semibold tabular-nums">
+            <div className="px-3 py-2">
+              <div className="text-[10px] text-whisper mb-0.5 font-mono">VOL</div>
+              <div className="text-base font-semibold tabular-nums">
                 {volatilityLabel}
               </div>
             </div>
 
-            <div className="w-px h-10 bg-white/10" />
+            <div className="w-px h-8 bg-white/10" />
 
             {/* User Actions */}
             {isConnected ? (
-              <div className="flex items-center gap-2 px-2">
+              <div className="flex items-center gap-1.5 px-2">
                 <button
                   onClick={openDeposit}
-                  className="btn-primary px-4 py-2 text-sm"
+                  className="btn-primary px-3 py-1.5 text-xs"
                 >
                   Deposit
                 </button>
                 <button
                   onClick={openWithdraw}
                   disabled={parseFloat(shares) <= 0}
-                  className="btn-ghost px-4 py-2 text-sm disabled:opacity-30"
+                  className="btn-ghost px-3 py-1.5 text-xs disabled:opacity-30"
                 >
                   Withdraw
                 </button>
               </div>
             ) : (
-              <div className="px-4">
+              <div className="px-2">
                 <ConnectButton.Custom>
                   {({ openConnectModal }) => (
                     <button
                       onClick={openConnectModal}
-                      className="btn-primary px-4 py-2 text-sm"
+                      className="btn-primary px-3 py-1.5 text-xs"
                     >
                       Connect
                     </button>
@@ -306,32 +325,36 @@ export default function Home() {
               </div>
             )}
 
-            <div className="w-px h-10 bg-white/10" />
+            <div className="w-px h-8 bg-white/10" />
 
             {/* Agent Control */}
             <button
               onClick={isAgentRunning ? stopAgent : startAgent}
-              className="btn-ghost ml-2 flex items-center gap-3 px-4"
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-all ${
+                isAgentRunning
+                  ? "bg-green-500/20 text-green-400"
+                  : "btn-ghost"
+              }`}
             >
               {isAgentRunning ? (
                 <>
-                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse-slow" />
-                  <span className="text-sm">Live</span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                  <span>Live</span>
                 </>
               ) : (
                 <>
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M8 5v14l11-7z" />
                   </svg>
-                  <span className="text-sm">Start</span>
+                  <span>Start</span>
                 </>
               )}
             </button>
           </div>
         </motion.div>
 
-        {/* User Position Card (if connected and has shares) */}
-        {isConnected && parseFloat(shares) > 0 && (
+        {/* User Position Card (if connected) */}
+        {isConnected && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -340,7 +363,14 @@ export default function Home() {
           >
             <div className="glass-subtle px-6 py-3 rounded-xl flex items-center gap-6">
               <div>
-                <div className="text-xs text-ghost mb-1">Your Position</div>
+                <div className="text-xs text-ghost mb-1">Wallet</div>
+                <div className="text-lg font-semibold tabular-nums">
+                  {parseFloat(usdcBalance).toFixed(2)} USDC
+                </div>
+              </div>
+              <div className="w-px h-8 bg-white/10" />
+              <div>
+                <div className="text-xs text-ghost mb-1">Deposited</div>
                 <div className="text-lg font-semibold tabular-nums">
                   {parseFloat(shares).toFixed(2)} shares
                 </div>
@@ -349,9 +379,18 @@ export default function Home() {
               <div>
                 <div className="text-xs text-ghost mb-1">Value</div>
                 <div className="text-lg font-semibold tabular-nums text-green-400">
-                  ~${parseFloat(shares).toFixed(2)}
+                  ${parseFloat(shareValue).toFixed(2)}
                 </div>
               </div>
+              {parseFloat(shares) > 0 && !isAgentRunning && (
+                <>
+                  <div className="w-px h-8 bg-white/10" />
+                  <div className="text-center">
+                    <div className="text-xs text-yellow-400 mb-1">Next Step</div>
+                    <div className="text-sm text-yellow-400/80">Click Start</div>
+                  </div>
+                </>
+              )}
             </div>
           </motion.div>
         )}
@@ -385,7 +424,7 @@ export default function Home() {
       {/* Vault Modal */}
       <VaultModal
         isOpen={showModal}
-        onClose={() => setShowModal(false)}
+        onClose={handleModalClose}
         mode={modalMode}
       />
     </main>
