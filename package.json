@@ -1,0 +1,42 @@
+{
+  "name": "velvet-arc",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "contracts:build": "cd contracts && forge build",
+    "contracts:test": "cd contracts && forge test",
+    "contracts:deploy:arc": "cd contracts && forge script script/DeployVault.s.sol --rpc-url $ARC_TESTNET_RPC --broadcast --private-key $PRIVATE_KEY"
+  },
+  "dependencies": {
+    "@lifi/sdk": "^3.4.1",
+    "@rainbow-me/rainbowkit": "^2.2.3",
+    "@react-three/drei": "^9.117.3",
+    "@react-three/fiber": "^8.17.10",
+    "@tanstack/react-query": "^5.62.8",
+    "ethers": "^6.13.4",
+    "framer-motion": "^11.15.0",
+    "next": "^14.2.28",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.171.0",
+    "viem": "^2.21.54",
+    "wagmi": "^2.14.6",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.171.0",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "14.2.21",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2"
+  }
+}
