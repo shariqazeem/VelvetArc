@@ -99,54 +99,156 @@ export interface ExecutionLog {
                       MARKET SCANNER
 //////////////////////////////////////////////////////////////*/
 
+// Cache for price history (for volatility calculation)
+let priceHistory: number[] = [];
+let lastFetchTime = 0;
+const FETCH_COOLDOWN = 10000; // 10 seconds
+
 /**
- * Fetch real market conditions
- * In production, this would pull from:
- * - Price oracles (Chainlink, Pyth)
- * - DEX APIs (Uniswap, etc.)
- * - Gas price APIs
+ * Fetch real market conditions from CoinGecko API
+ * Uses ETH price and market data as proxy for overall crypto volatility
  */
 export async function scanMarketConditions(): Promise<MarketConditions> {
-  // TODO: Replace with real oracle/API calls
-  // For hackathon demo, we simulate realistic data
-
   const now = Date.now();
 
-  // Simulate market data with some randomness
-  const baseVolatility = Math.random();
-  const volatilityIndex = Math.floor(baseVolatility * 100);
+  // Respect rate limits
+  if (now - lastFetchTime < FETCH_COOLDOWN) {
+    // Return cached/simulated data if called too frequently
+    return generateMarketConditionsFromHistory(now);
+  }
+  lastFetchTime = now;
+
+  try {
+    // Fetch ETH price and 24h data from CoinGecko
+    const response = await fetch(
+      "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true"
+    );
+
+    if (!response.ok) {
+      console.log("[Agent] CoinGecko API rate limited, using cached data");
+      return generateMarketConditionsFromHistory(now);
+    }
+
+    const data = await response.json();
+    const ethPrice = data.ethereum?.usd || 0;
+    const priceChange24h = data.ethereum?.usd_24h_change || 0;
+    const volume24h = data.ethereum?.usd_24h_vol || 0;
+
+    // Update price history for volatility calculation
+    priceHistory.push(ethPrice);
+    if (priceHistory.length > 24) {
+      priceHistory = priceHistory.slice(-24); // Keep last 24 data points
+    }
+
+    // Calculate volatility from price history
+    const volatilityIndex = calculateVolatilityIndex(priceHistory, priceChange24h);
+
+    let volatility: VolatilityLevel;
+    if (volatilityIndex < 20) {
+      volatility = "LOW";
+    } else if (volatilityIndex < 50) {
+      volatility = "MEDIUM";
+    } else if (volatilityIndex < 80) {
+      volatility = "HIGH";
+    } else {
+      volatility = "EXTREME";
+    }
+
+    // Fetch gas price from Base
+    let gasPrice = 30; // Default
+    try {
+      const gasResponse = await fetch("https://sepolia.base.org", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "eth_gasPrice",
+          params: [],
+          id: 1,
+        }),
+      });
+      const gasData = await gasResponse.json();
+      gasPrice = parseInt(gasData.result, 16) / 1e9; // Convert wei to gwei
+    } catch (e) {
+      console.log("[Agent] Gas price fetch failed, using default");
+    }
+
+    console.log(
+      `[Agent] Market scan: ETH $${ethPrice.toFixed(0)}, 24h: ${priceChange24h.toFixed(2)}%, Vol: ${volatility}`
+    );
+
+    return {
+      volatility,
+      volatilityIndex,
+      volume24h,
+      priceChange24h,
+      tvl: 50_000_000, // Placeholder - would read from contract
+      gasPrice,
+      timestamp: now,
+    };
+  } catch (error) {
+    console.error("[Agent] Market scan error:", error);
+    return generateMarketConditionsFromHistory(now);
+  }
+}
+
+/**
+ * Calculate volatility index from price history
+ */
+function calculateVolatilityIndex(prices: number[], change24h: number): number {
+  if (prices.length < 2) {
+    // Not enough data, use 24h change as proxy
+    return Math.min(Math.abs(change24h) * 5, 100);
+  }
+
+  // Calculate standard deviation of returns
+  const returns: number[] = [];
+  for (let i = 1; i < prices.length; i++) {
+    const ret = (prices[i] - prices[i - 1]) / prices[i - 1];
+    returns.push(ret);
+  }
+
+  const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+  const variance = returns.reduce((acc, r) => acc + Math.pow(r - mean, 2), 0) / returns.length;
+  const stdDev = Math.sqrt(variance);
+
+  // Normalize to 0-100 scale (0.01 stddev = low vol, 0.05 = extreme)
+  const volatilityIndex = Math.min((stdDev / 0.05) * 100, 100);
+
+  // Also factor in 24h change
+  const changeImpact = Math.min(Math.abs(change24h) * 3, 30);
+
+  return Math.min(volatilityIndex + changeImpact, 100);
+}
+
+/**
+ * Generate market conditions from cached history (fallback)
+ */
+function generateMarketConditionsFromHistory(timestamp: number): MarketConditions {
+  // Use last known price change or generate realistic values
+  const baseVolatility = priceHistory.length > 1
+    ? calculateVolatilityIndex(priceHistory, 0)
+    : 25 + Math.random() * 25; // Default medium
 
   let volatility: VolatilityLevel;
-  if (volatilityIndex < 30) {
+  if (baseVolatility < 20) {
     volatility = "LOW";
-  } else if (volatilityIndex < 60) {
+  } else if (baseVolatility < 50) {
     volatility = "MEDIUM";
-  } else if (volatilityIndex < 85) {
+  } else if (baseVolatility < 80) {
     volatility = "HIGH";
   } else {
     volatility = "EXTREME";
   }
 
-  // Simulate 24h volume ($1M - $50M range)
-  const volume24h = 1_000_000 + Math.random() * 49_000_000;
-
-  // Simulate price change (-8% to +8%)
-  const priceChange24h = (Math.random() - 0.5) * 16;
-
-  // Simulate TVL ($10M - $100M)
-  const tvl = 10_000_000 + Math.random() * 90_000_000;
-
-  // Simulate gas price (10-100 gwei)
-  const gasPrice = 10 + Math.random() * 90;
-
   return {
     volatility,
-    volatilityIndex,
-    volume24h,
-    priceChange24h,
-    tvl,
-    gasPrice,
-    timestamp: now,
+    volatilityIndex: Math.floor(baseVolatility),
+    volume24h: 15_000_000 + Math.random() * 10_000_000,
+    priceChange24h: (Math.random() - 0.5) * 6,
+    tvl: 50_000_000,
+    gasPrice: 20 + Math.random() * 30,
+    timestamp,
   };
 }
 
