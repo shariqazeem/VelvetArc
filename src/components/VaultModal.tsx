@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useAccount } from "wagmi";
+import { useAccount, useSwitchChain } from "wagmi";
 import { useUserPosition, useApprove, useDeposit, useWithdraw } from "@/hooks/useContracts";
+import { arcTestnet } from "@/lib/wagmi-config";
 
 interface VaultModalProps {
   isOpen: boolean;
@@ -12,11 +13,15 @@ interface VaultModalProps {
 }
 
 export function VaultModal({ isOpen, onClose, mode }: VaultModalProps) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
+  const { switchChain } = useSwitchChain();
   const { usdcBalance, shares, allowanceRaw, refetch } = useUserPosition();
   const [amount, setAmount] = useState("");
-  const [step, setStep] = useState<"input" | "approving" | "executing" | "success" | "error">("input");
+  const [step, setStep] = useState<"input" | "switching" | "approving" | "executing" | "success" | "error">("input");
   const [errorMessage, setErrorMessage] = useState("");
+
+  // Check if on correct chain
+  const isCorrectChain = chainId === arcTestnet.id;
 
   // Hooks for transactions
   const {
@@ -89,6 +94,20 @@ export function VaultModal({ isOpen, onClose, mode }: VaultModalProps) {
 
     setErrorMessage("");
 
+    // Switch to Arc Testnet if needed
+    if (!isCorrectChain) {
+      setStep("switching");
+      try {
+        await switchChain({ chainId: arcTestnet.id });
+        // Wait a moment for chain to switch
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (e) {
+        setStep("error");
+        setErrorMessage("Please switch to Arc Testnet in your wallet");
+        return;
+      }
+    }
+
     if (mode === "deposit") {
       const amountWei = BigInt(Math.floor(parseFloat(amount) * 1e6));
       const currentAllowance = allowanceRaw ?? BigInt(0);
@@ -153,6 +172,16 @@ export function VaultModal({ isOpen, onClose, mode }: VaultModalProps) {
 
             {step === "input" && (
               <>
+                {/* Wrong chain warning */}
+                {!isCorrectChain && (
+                  <div className="mb-4 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                    <p className="text-sm text-yellow-400">
+                      You&apos;re on {chainId === 84532 ? "Base Sepolia" : "wrong network"}.
+                      Will switch to Arc Testnet on submit.
+                    </p>
+                  </div>
+                )}
+
                 {/* Balance */}
                 <div className="mb-4">
                   <div className="flex justify-between text-sm mb-2">
@@ -207,6 +236,14 @@ export function VaultModal({ isOpen, onClose, mode }: VaultModalProps) {
                   {mode === "deposit" ? "Deposit" : "Withdraw"}
                 </button>
               </>
+            )}
+
+            {step === "switching" && (
+              <div className="text-center py-8">
+                <div className="w-12 h-12 border-2 border-white/20 border-t-white rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-lg mb-2">Switching to Arc Testnet...</p>
+                <p className="text-sm text-ghost">Please approve in your wallet</p>
+              </div>
             )}
 
             {step === "approving" && (

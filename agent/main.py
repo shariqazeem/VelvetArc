@@ -69,7 +69,7 @@ class VelvetAgent:
             balance_arc=balances["arc_vault"],
             balance_base=balances["base_agent"],
             last_bridge_time=self.last_bridge_time,
-            fees_earned=hook_state["fees_collected"],
+            fees_earned=hook_state.get("total_liquidity", 0),  # Use liquidity as proxy
             current_fee_bps=hook_state["dynamic_fee"],
         )
 
