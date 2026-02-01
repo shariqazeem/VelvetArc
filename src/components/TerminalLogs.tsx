@@ -118,13 +118,13 @@ export function TerminalLogs() {
         });
         newLogs.push({
           id: logIdRef.current++,
-          text: "[CIRCLE CCTP] BURN TX",
+          text: "[CIRCLE GATEWAY] BRIDGE TX",
           type: "info",
           timestamp: Date.now() + 100,
         });
         newLogs.push({
           id: logIdRef.current++,
-          text: "[LI.FI] ROUTING...",
+          text: "[LI.FI SDK] EXECUTING...",
           type: "info",
           timestamp: Date.now() + 200,
         });

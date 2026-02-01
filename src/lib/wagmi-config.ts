@@ -1,5 +1,5 @@
 import { http } from "wagmi";
-import { baseSepolia } from "wagmi/chains";
+import { baseSepolia, mainnet } from "wagmi/chains";
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
 import { defineChain } from "viem";
 
@@ -25,22 +25,23 @@ export const arcTestnet = defineChain({
 
 // Contract addresses
 export const CONTRACTS = {
-  vault: "0xC4a486Ef5dce0655983F7aF31682E1AE107995dB" as `0x${string}`,
-  hook: "0x9D5Ed0F872f95808EaFf9F709cA61db06Dc520d2" as `0x${string}`,
+  vault: (process.env.NEXT_PUBLIC_VAULT_ADDRESS_ARC || "0xC4a486Ef5dce0655983F7aF31682E1AE107995dB") as `0x${string}`,
+  hook: (process.env.NEXT_PUBLIC_HOOK_ADDRESS_BASE || "0x9D5Ed0F872f95808EaFf9F709cA61db06Dc520d2") as `0x${string}`,
   agent: "0x55c3aBb091D1a43C3872718b3b8B3AE8c20B592E" as `0x${string}`,
   arcUsdc: "0x3600000000000000000000000000000000000000" as `0x${string}`,
   baseUsdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as `0x${string}`,
-  arcTokenMessenger: "0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA" as `0x${string}`,
+  arcGateway: "0x0077777d7EBA4688BDeF3E311b846F25870A19B9" as `0x${string}`,
 } as const;
 
 // Wagmi config with RainbowKit
 export const config = getDefaultConfig({
   appName: "Velvet Arc",
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "demo",
-  chains: [arcTestnet, baseSepolia],
+  chains: [arcTestnet, baseSepolia, mainnet],
   transports: {
     [arcTestnet.id]: http("https://rpc.testnet.arc.network"),
     [baseSepolia.id]: http("https://sepolia.base.org"),
+    [mainnet.id]: http("https://eth.llamarpc.com"), // For ENS resolution
   },
   ssr: true,
 });

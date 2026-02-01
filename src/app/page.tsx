@@ -7,6 +7,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
 import { useVaultData, useHookData, useUserPosition } from "@/hooks/useContracts";
 import { useVelvetStore } from "@/hooks/useVelvetStore";
+import { useENSIdentity, formatAddressOrENS } from "@/hooks/useENS";
 import { TerminalLogs } from "@/components/TerminalLogs";
 import { VaultModal } from "@/components/VaultModal";
 
@@ -60,6 +61,9 @@ export default function Home() {
   } = useHookData();
 
   const { shares, shareValue, usdcBalance, refetch: refetchUser } = useUserPosition();
+
+  // ENS identity for connected user
+  const { name: ensName, avatar: ensAvatar } = useENSIdentity(address);
 
   const [mounted, setMounted] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -395,15 +399,25 @@ export default function Home() {
           </motion.div>
         )}
 
-        {/* Bottom Right - Identity */}
+        {/* Bottom Right - User Identity */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8, delay: 1 }}
-          className="fixed bottom-8 right-8 z-50"
+          className="fixed bottom-8 right-8 z-50 flex items-center gap-2"
         >
+          {ensAvatar && (
+            <img
+              src={ensAvatar}
+              alt="ENS Avatar"
+              className="w-5 h-5 rounded-full"
+            />
+          )}
           <span className="text-xs text-whisper font-mono">
-            velvet-agent.eth
+            {isConnected
+              ? formatAddressOrENS(address, ensName)
+              : "velvet-agent.eth"
+            }
           </span>
         </motion.div>
 
