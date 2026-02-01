@@ -9,7 +9,12 @@
     "lint": "next lint",
     "contracts:build": "cd contracts && forge build",
     "contracts:test": "cd contracts && forge test",
-    "contracts:deploy:arc": "cd contracts && forge script script/DeployVault.s.sol --rpc-url $ARC_TESTNET_RPC --broadcast --private-key $PRIVATE_KEY"
+    "contracts:deploy:arc": "cd contracts && forge script script/DeployVault.s.sol --rpc-url $ARC_TESTNET_RPC --broadcast --private-key $PRIVATE_KEY",
+    "agent": "npx tsx scripts/run-agent-production.ts",
+    "agent:demo": "DEMO_MODE=true npx tsx scripts/run-agent-production.ts",
+    "agent:demo:deploy": "DEMO_MODE=true FORCE_ACTION=DEPLOY npx tsx scripts/run-agent-production.ts",
+    "agent:demo:withdraw": "DEMO_MODE=true FORCE_ACTION=WITHDRAW npx tsx scripts/run-agent-production.ts",
+    "agent:legacy": "npx tsx scripts/run-agent.ts"
   },
   "dependencies": {
     "@lifi/sdk": "^3.4.1",

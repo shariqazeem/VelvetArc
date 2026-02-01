@@ -12,6 +12,16 @@
  *   PRIVATE_KEY - Agent wallet private key (with 0x prefix)
  *   NEXT_PUBLIC_VAULT_ADDRESS_ARC - VelvetVault contract on Arc
  *   NEXT_PUBLIC_HOOK_ADDRESS_BASE - VelvetHook contract on Base
+ *
+ * Demo Mode (for hackathon presentations):
+ *   DEMO_MODE=true                  - Enable demo mode
+ *   FORCE_ACTION=DEPLOY             - Force deploy to Base
+ *   FORCE_ACTION=WITHDRAW           - Force withdraw to Arc
+ *   DEMO_CYCLE=true                 - Auto-cycle through all states
+ *
+ * Example demo commands:
+ *   DEMO_MODE=true FORCE_ACTION=DEPLOY npx tsx scripts/run-agent.ts
+ *   DEMO_MODE=true DEMO_CYCLE=true npx tsx scripts/run-agent.ts
  */
 
 import { config } from "dotenv";
@@ -46,6 +56,14 @@ config({ path: resolve(process.cwd(), ".env") });
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS_ARC;
 const HOOK_ADDRESS = process.env.NEXT_PUBLIC_HOOK_ADDRESS_BASE;
+
+// Demo Mode Configuration
+// DEMO_MODE=true enables manual override
+// FORCE_ACTION=DEPLOY|WITHDRAW forces that action regardless of market
+// DEMO_CYCLE=true auto-cycles: DEPLOY → (wait 30s) → WITHDRAW → (wait 30s) → repeat
+const DEMO_MODE = process.env.DEMO_MODE === "true";
+const FORCE_ACTION = process.env.FORCE_ACTION as "DEPLOY" | "WITHDRAW" | undefined;
+const DEMO_CYCLE = process.env.DEMO_CYCLE === "true";
 
 // Chain definitions
 const arcTestnet: Chain = {
@@ -170,6 +188,9 @@ interface AgentState {
   vaultBalance: bigint;
   lastUpdate: number;
   iterationCount: number;
+  // Demo mode state
+  demoCyclePhase: "DEPLOY" | "FARMING" | "WITHDRAW" | "SAFE";
+  demoCycleStart: number;
 }
 
 let state: AgentState = {
@@ -182,6 +203,8 @@ let state: AgentState = {
   vaultBalance: 0n,
   lastUpdate: 0,
   iterationCount: 0,
+  demoCyclePhase: "DEPLOY",
+  demoCycleStart: 0,
 };
 
 /*//////////////////////////////////////////////////////////////
@@ -212,6 +235,19 @@ async function main() {
   console.log(`🔑 Agent Address: ${account.address}`);
   console.log(`📍 Vault (Arc): ${VAULT_ADDRESS || "Not deployed"}`);
   console.log(`📍 Hook (Base): ${HOOK_ADDRESS || "Not deployed"}`);
+
+  // Demo mode banner
+  if (DEMO_MODE) {
+    console.log("");
+    console.log("🎬 ═══════════════════════════════════════════════════════");
+    console.log("   DEMO MODE ACTIVE");
+    if (FORCE_ACTION) {
+      console.log(`   FORCING: ${FORCE_ACTION}`);
+    } else if (DEMO_CYCLE) {
+      console.log("   AUTO-CYCLE: DEPLOY → FARM → WITHDRAW → SAFE → repeat");
+    }
+    console.log("═══════════════════════════════════════════════════════════");
+  }
   console.log("");
 
   // Create clients
@@ -317,6 +353,7 @@ async function main() {
   console.log("═══════════════════════════════════════════════════════════\n");
 
   state.isRunning = true;
+  state.demoCycleStart = Date.now(); // Initialize demo cycle timer
 
   // Main agent loop
   while (state.isRunning) {
@@ -345,7 +382,15 @@ async function runIteration(
   state.iterationCount++;
   const timestamp = new Date().toISOString();
 
-  console.log(`\n[${timestamp}] 🔄 Iteration #${state.iterationCount}`);
+  const modeLabel = DEMO_MODE
+    ? DEMO_CYCLE
+      ? `🎬 DEMO CYCLE [${state.demoCyclePhase}]`
+      : FORCE_ACTION
+        ? `🎬 FORCE ${FORCE_ACTION}`
+        : "🎬 DEMO"
+    : "📡 LIVE";
+
+  console.log(`\n[${timestamp}] 🔄 Iteration #${state.iterationCount} ${modeLabel}`);
 
   // 1. Scan market conditions
   const conditions = await scanMarket();
@@ -492,7 +537,134 @@ interface AgentDecision {
   suggestedAmount?: bigint;
 }
 
+// Demo mode cycle timing (seconds)
+const DEMO_CYCLE_TIMINGS = {
+  DEPLOY: 10,   // Deploy after 10s
+  FARMING: 30,  // Farm for 30s
+  WITHDRAW: 10, // Withdraw takes 10s
+  SAFE: 20,     // Stay safe for 20s before next cycle
+};
+
+function makeDemoDecision(state: AgentState): AgentDecision {
+  // Force action override (highest priority)
+  if (FORCE_ACTION === "DEPLOY") {
+    if (state.position === "BASE") {
+      return {
+        action: "HOLD",
+        reason: "DEMO: Already deployed on Base",
+        confidence: 1.0,
+        suggestedFee: 200,
+      };
+    }
+    return {
+      action: "DEPLOY",
+      reason: "DEMO: Manual override - DEPLOY forced",
+      confidence: 1.0,
+      suggestedFee: 200,
+      suggestedAmount: state.vaultBalance > 0n ? state.vaultBalance : parseUnits("5", 6),
+    };
+  }
+
+  if (FORCE_ACTION === "WITHDRAW") {
+    if (state.position === "ARC") {
+      return {
+        action: "HOLD",
+        reason: "DEMO: Already safe on Arc",
+        confidence: 1.0,
+        suggestedFee: 500,
+      };
+    }
+    return {
+      action: "WITHDRAW",
+      reason: "DEMO: Manual override - WITHDRAW forced",
+      confidence: 1.0,
+      suggestedFee: 1000,
+    };
+  }
+
+  // Auto-cycle mode
+  if (DEMO_CYCLE) {
+    const elapsed = (Date.now() - state.demoCycleStart) / 1000;
+
+    switch (state.demoCyclePhase) {
+      case "DEPLOY":
+        if (state.position === "ARC" && state.vaultBalance > 0n) {
+          return {
+            action: "DEPLOY",
+            reason: `DEMO CYCLE: Deploying to Base for yield`,
+            confidence: 1.0,
+            suggestedFee: 200,
+            suggestedAmount: state.vaultBalance,
+          };
+        }
+        // Move to farming phase
+        state.demoCyclePhase = "FARMING";
+        state.demoCycleStart = Date.now();
+        return {
+          action: "HOLD",
+          reason: "DEMO CYCLE: Now farming on Base",
+          confidence: 1.0,
+          suggestedFee: 200,
+        };
+
+      case "FARMING":
+        if (elapsed > DEMO_CYCLE_TIMINGS.FARMING) {
+          state.demoCyclePhase = "WITHDRAW";
+          state.demoCycleStart = Date.now();
+        }
+        return {
+          action: "HOLD",
+          reason: `DEMO CYCLE: Farming on Base (${DEMO_CYCLE_TIMINGS.FARMING - Math.floor(elapsed)}s left)`,
+          confidence: 1.0,
+          suggestedFee: 200,
+        };
+
+      case "WITHDRAW":
+        if (state.position === "BASE") {
+          return {
+            action: "WITHDRAW",
+            reason: "DEMO CYCLE: Returning to Arc safe harbor",
+            confidence: 1.0,
+            suggestedFee: 500,
+          };
+        }
+        state.demoCyclePhase = "SAFE";
+        state.demoCycleStart = Date.now();
+        return {
+          action: "HOLD",
+          reason: "DEMO CYCLE: Safe on Arc",
+          confidence: 1.0,
+          suggestedFee: 500,
+        };
+
+      case "SAFE":
+        if (elapsed > DEMO_CYCLE_TIMINGS.SAFE) {
+          state.demoCyclePhase = "DEPLOY";
+          state.demoCycleStart = Date.now();
+        }
+        return {
+          action: "HOLD",
+          reason: `DEMO CYCLE: Resting on Arc (${DEMO_CYCLE_TIMINGS.SAFE - Math.floor(elapsed)}s until next deploy)`,
+          confidence: 1.0,
+          suggestedFee: 500,
+        };
+    }
+  }
+
+  // Default hold
+  return {
+    action: "HOLD",
+    reason: "DEMO: No action specified",
+    confidence: 1.0,
+    suggestedFee: 500,
+  };
+}
+
 function makeDecision(conditions: MarketConditions, state: AgentState): AgentDecision {
+  // Demo mode overrides market-based decisions
+  if (DEMO_MODE) {
+    return makeDemoDecision(state);
+  }
   const { volatility, volatilityIndex, priceChange24h, gasPrice } = conditions;
 
   // Emergency conditions
