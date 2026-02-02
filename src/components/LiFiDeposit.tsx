@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 import type { WidgetConfig } from "@lifi/widget";
@@ -11,7 +11,7 @@ const LiFiWidget = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="h-[480px] flex items-center justify-center">
+      <div className="h-[400px] flex items-center justify-center">
         <div className="w-6 h-6 border-2 border-white/20 border-t-white/60 rounded-full animate-spin" />
       </div>
     )
@@ -25,46 +25,28 @@ interface LiFiDepositProps {
 }
 
 export function LiFiDeposit({ isOpen, onClose, agentAddress }: LiFiDepositProps) {
-  // Memoize config to prevent re-renders
+  const [mode, setMode] = useState<"mainnet" | "testnet">("testnet");
+
+  // LI.FI config for mainnet
   const widgetConfig = useMemo((): Partial<WidgetConfig> => ({
     appearance: "dark",
     variant: "compact",
     subvariant: "default",
-    // Pre-configure destination
     toChain: 8453, // Base mainnet
     toToken: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", // USDC on Base
-    // Styling to match our minimalist design
     theme: {
       palette: {
         primary: { main: "#ffffff" },
         secondary: { main: "#a3a3a3" },
-        background: {
-          default: "#000000",
-          paper: "#0a0a0a",
-        },
-        text: {
-          primary: "#ffffff",
-          secondary: "#a3a3a3",
-        },
+        background: { default: "#000000", paper: "#0a0a0a" },
+        text: { primary: "#ffffff", secondary: "#a3a3a3" },
       },
-      shape: {
-        borderRadius: 12,
-        borderRadiusSecondary: 8,
-      },
-      typography: {
-        fontFamily: "inherit",
-      },
-      container: {
-        boxShadow: "none",
-        borderRadius: "16px",
-      },
+      shape: { borderRadius: 12, borderRadiusSecondary: 8 },
+      typography: { fontFamily: "inherit" },
+      container: { boxShadow: "none", borderRadius: "16px" },
     },
-    // Hide unnecessary UI for cleaner look
     hiddenUI: ["appearance", "poweredBy", "language"],
-    // Allow popular chains
-    chains: {
-      allow: [1, 10, 137, 42161, 8453, 84532], // ETH, OP, Polygon, Arb, Base, Base Sepolia
-    },
+    chains: { allow: [1, 10, 137, 42161, 8453] },
   }), []);
 
   return (
@@ -91,13 +73,13 @@ export function LiFiDeposit({ isOpen, onClose, agentAddress }: LiFiDepositProps)
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.2 }}
-            className="relative z-10 w-full max-w-[392px] mx-4"
+            className="relative z-10 w-full max-w-[420px] mx-4"
           >
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-lg font-medium text-white">Fund Agent</h2>
-                <p className="text-xs text-white/40">Cross-chain via LI.FI</p>
+                <p className="text-xs text-white/40">Send USDC to the agent treasury</p>
               </div>
               <button
                 onClick={onClose}
@@ -109,25 +91,114 @@ export function LiFiDeposit({ isOpen, onClose, agentAddress }: LiFiDepositProps)
               </button>
             </div>
 
-            {/* Destination info */}
-            <div className="mb-3 px-3 py-2 rounded-lg bg-white/5 border border-white/10">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-white/40">Destination</span>
-                <code className="text-white/60 font-mono">
-                  {agentAddress.slice(0, 6)}...{agentAddress.slice(-4)} (Base)
-                </code>
-              </div>
+            {/* Mode Toggle */}
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => setMode("testnet")}
+                className={`flex-1 py-2 rounded-lg text-sm transition-all ${
+                  mode === "testnet"
+                    ? "bg-white/10 text-white"
+                    : "bg-white/5 text-white/40 hover:text-white/60"
+                }`}
+              >
+                Testnet (Demo)
+              </button>
+              <button
+                onClick={() => setMode("mainnet")}
+                className={`flex-1 py-2 rounded-lg text-sm transition-all ${
+                  mode === "mainnet"
+                    ? "bg-white/10 text-white"
+                    : "bg-white/5 text-white/40 hover:text-white/60"
+                }`}
+              >
+                Mainnet (LI.FI)
+              </button>
             </div>
 
-            {/* Widget Container */}
-            <div className="rounded-2xl overflow-hidden border border-white/10 bg-black">
-              <LiFiWidget integrator="velvet-arc" config={widgetConfig} />
+            {/* Content */}
+            <div className="rounded-2xl border border-white/10 bg-[#0a0a0a] overflow-hidden">
+              {mode === "testnet" ? (
+                /* Testnet Instructions */
+                <div className="p-6 space-y-4">
+                  <div className="text-center mb-6">
+                    <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-blue-500/10 flex items-center justify-center">
+                      <svg className="w-6 h-6 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <p className="text-sm text-white/60">Demo uses Base Sepolia testnet</p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="p-3 rounded-lg bg-white/5">
+                      <p className="text-[10px] text-white/40 uppercase mb-1">Step 1: Get Base Sepolia ETH</p>
+                      <a
+                        href="https://www.alchemy.com/faucets/base-sepolia"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-400 hover:text-blue-300"
+                      >
+                        Alchemy Faucet →
+                      </a>
+                    </div>
+
+                    <div className="p-3 rounded-lg bg-white/5">
+                      <p className="text-[10px] text-white/40 uppercase mb-1">Step 2: Get Base Sepolia USDC</p>
+                      <a
+                        href="https://faucet.circle.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-400 hover:text-blue-300"
+                      >
+                        Circle USDC Faucet →
+                      </a>
+                    </div>
+
+                    <div className="p-3 rounded-lg bg-white/5">
+                      <p className="text-[10px] text-white/40 uppercase mb-1">Step 3: Agent Wallet</p>
+                      <div className="flex items-center justify-between">
+                        <code className="text-xs text-white/60 font-mono">
+                          {agentAddress.slice(0, 10)}...{agentAddress.slice(-8)}
+                        </code>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(agentAddress)}
+                          className="text-xs text-white/40 hover:text-white/60"
+                        >
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 border-t border-white/5">
+                    <p className="text-[10px] text-white/30 text-center">
+                      Send test USDC to the agent address, then click "Start Agent" to watch it work
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                /* LI.FI Widget for Mainnet */
+                <div>
+                  <div className="px-4 py-3 border-b border-white/5 bg-white/5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-white/40">Destination</span>
+                      <code className="text-white/60 font-mono">
+                        {agentAddress.slice(0, 6)}...{agentAddress.slice(-4)} (Base)
+                      </code>
+                    </div>
+                  </div>
+                  <LiFiWidget integrator="velvet-arc" config={widgetConfig} />
+                </div>
+              )}
             </div>
 
             {/* Footer */}
             <div className="mt-4 text-center">
               <p className="text-[10px] text-white/30">
-                Funds arrive as USDC on Base → Agent deploys to Uniswap V4
+                {mode === "testnet"
+                  ? "Testnet tokens have no real value"
+                  : "Powered by LI.FI cross-chain aggregation"
+                }
               </p>
             </div>
           </motion.div>
