@@ -16,18 +16,19 @@ function MercuryCore({ state }: { state: number }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
 
-  // State-based properties
+  // State-based properties with winning color scheme
   const config = useMemo(() => {
     switch (state) {
-      case 1: // BRIDGING_OUT
-      case 3: // BRIDGING_BACK
-        return { color: "#a78bfa", emissive: "#6d28d9", speed: 2, distort: 0.4 };
-      case 2: // DEPLOYED
-        return { color: "#fb923c", emissive: "#c2410c", speed: 1.2, distort: 0.3 };
-      case 4: // PROTECTED
-        return { color: "#374151", emissive: "#111827", speed: 0.3, distort: 0.1 };
-      default: // IDLE
-        return { color: "#60a5fa", emissive: "#1e40af", speed: 0.6, distort: 0.2 };
+      case 1: // BRIDGING_OUT - Purple pulse (deploying)
+        return { color: "#a78bfa", emissive: "#7c3aed", speed: 2.5, distort: 0.5 };
+      case 3: // BRIDGING_BACK - Blue pulse (returning)
+        return { color: "#60a5fa", emissive: "#2563eb", speed: 2.5, distort: 0.5 };
+      case 2: // DEPLOYED - Green glow (actively earning)
+        return { color: "#4ade80", emissive: "#16a34a", speed: 1.0, distort: 0.25 };
+      case 4: // PROTECTED - Red warning (circuit breaker)
+        return { color: "#f87171", emissive: "#dc2626", speed: 0.5, distort: 0.15 };
+      default: // IDLE - Soft white/silver (safe harbor)
+        return { color: "#e2e8f0", emissive: "#94a3b8", speed: 0.4, distort: 0.15 };
     }
   }, [state]);
 
@@ -95,7 +96,7 @@ function GlassShell() {
   );
 }
 
-// Ambient particles for depth
+// Ambient particles for depth - color matches state
 function AmbientParticles({ state }: { state: number }) {
   const pointsRef = useRef<THREE.Points>(null);
   const count = 50;
@@ -115,12 +116,25 @@ function AmbientParticles({ state }: { state: number }) {
     return pos;
   }, []);
 
-  const isBridging = state === 1 || state === 3;
+  // State-based particle config
+  const particleConfig = useMemo(() => {
+    switch (state) {
+      case 1: // BRIDGING_OUT
+        return { color: "#a78bfa", speed: 0.4, opacity: 0.6 };
+      case 3: // BRIDGING_BACK
+        return { color: "#60a5fa", speed: 0.4, opacity: 0.6 };
+      case 2: // DEPLOYED
+        return { color: "#4ade80", speed: 0.15, opacity: 0.4 };
+      case 4: // PROTECTED
+        return { color: "#f87171", speed: 0.1, opacity: 0.5 };
+      default: // IDLE
+        return { color: "#e2e8f0", speed: 0.05, opacity: 0.15 };
+    }
+  }, [state]);
 
   useFrame(({ clock }) => {
     if (pointsRef.current) {
-      const speed = isBridging ? 0.3 : 0.05;
-      pointsRef.current.rotation.y = clock.elapsedTime * speed;
+      pointsRef.current.rotation.y = clock.elapsedTime * particleConfig.speed;
       pointsRef.current.rotation.x = Math.sin(clock.elapsedTime * 0.2) * 0.1;
     }
   });
@@ -132,9 +146,9 @@ function AmbientParticles({ state }: { state: number }) {
       </bufferGeometry>
       <pointsMaterial
         size={0.02}
-        color="#ffffff"
+        color={particleConfig.color}
         transparent
-        opacity={isBridging ? 0.6 : 0.15}
+        opacity={particleConfig.opacity}
         sizeAttenuation
       />
     </points>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useVelvetStore } from "@/hooks/useVelvetStore";
 import { useAccount } from "wagmi";
 import { useVaultData, useUserPosition } from "@/hooks/useContracts";
@@ -8,8 +9,14 @@ import { useVaultData, useUserPosition } from "@/hooks/useContracts";
 interface LogEntry {
   id: number;
   text: string;
-  type: "info" | "success" | "warning" | "error";
+  type: "info" | "success" | "warning" | "error" | "action";
   timestamp: number;
+}
+
+// Format time as HH:MM:SS
+function formatTime(timestamp: number): string {
+  const date = new Date(timestamp);
+  return date.toTimeString().slice(0, 8);
 }
 
 export function TerminalLogs() {
@@ -19,8 +26,18 @@ export function TerminalLogs() {
   const { shares } = useUserPosition();
   const { vaultBalance } = useVaultData();
   const logIdRef = useRef(0);
-  const lastActionRef = useRef<string | null>(null);
+  const lastStateRef = useRef<string | null>(null);
   const hasShownIntroRef = useRef(false);
+
+  const addLog = (text: string, type: LogEntry["type"]) => {
+    const newLog: LogEntry = {
+      id: logIdRef.current++,
+      text,
+      type,
+      timestamp: Date.now(),
+    };
+    setLogs(prev => [newLog, ...prev].slice(0, 10));
+  };
 
   // Show intro logs when user has deposited but agent not running
   useEffect(() => {
@@ -30,202 +47,176 @@ export function TerminalLogs() {
 
     hasShownIntroRef.current = true;
 
-    const introLogs: LogEntry[] = [
+    const now = Date.now();
+    setLogs([
       {
         id: logIdRef.current++,
-        text: `VAULT: $${parseFloat(vaultBalance).toFixed(2)} TVL`,
+        text: `Vault ready: $${parseFloat(vaultBalance).toFixed(2)} TVL`,
         type: "success",
-        timestamp: Date.now(),
+        timestamp: now + 200,
       },
       {
         id: logIdRef.current++,
-        text: "POSITION DETECTED",
+        text: "Your position detected",
         type: "info",
-        timestamp: Date.now() + 100,
+        timestamp: now + 100,
       },
       {
         id: logIdRef.current++,
-        text: "AWAITING AGENT START...",
+        text: "Click START to activate agent",
         type: "warning",
-        timestamp: Date.now() + 200,
+        timestamp: now,
       },
-    ];
-
-    setLogs(introLogs);
+    ]);
   }, [isConnected, shares, vaultBalance, isAgentRunning]);
 
   // Reset intro flag when agent starts
   useEffect(() => {
     if (isAgentRunning) {
       hasShownIntroRef.current = true;
+      addLog("velvet-agent.eth activated", "success");
     }
   }, [isAgentRunning]);
 
-  // Generate logs based on agent state
+  // Generate enhanced storytelling logs based on agent state
   useEffect(() => {
     if (!isAgentRunning) return;
 
     const { currentState, lastDecision, lastConditions } = agentState;
 
-    // Only add log if action changed
-    const currentAction = `${currentState}-${lastDecision?.action}`;
-    if (currentAction === lastActionRef.current) return;
-    lastActionRef.current = currentAction;
+    // Only add log if state changed
+    const stateKey = `${currentState}-${lastDecision?.action}-${lastConditions?.volatility}`;
+    if (stateKey === lastStateRef.current) return;
+    lastStateRef.current = stateKey;
 
-    const newLogs: LogEntry[] = [];
-
-    // State-based logs with sponsor integrations highlighted
+    // State-based storytelling logs
     switch (currentState) {
       case "SCANNING":
-        newLogs.push({
-          id: logIdRef.current++,
-          text: "SCANNING MARKET CONDITIONS...",
-          type: "info",
-          timestamp: Date.now(),
-        });
+        if (lastConditions) {
+          const priceChange = lastConditions.priceChange24h?.toFixed(2) || "0";
+          const sign = parseFloat(priceChange) >= 0 ? "+" : "";
+          addLog(
+            `Scanning... ETH $${lastConditions.ethPrice?.toFixed(0) || "3000"} (${sign}${priceChange}%)`,
+            "info"
+          );
+        } else {
+          addLog("Scanning market conditions...", "info");
+        }
         break;
 
       case "ANALYZING":
         if (lastConditions) {
-          newLogs.push({
-            id: logIdRef.current++,
-            text: `ETH 24H: ${lastConditions.priceChange24h?.toFixed(2) || "0"}%`,
-            type: lastConditions.priceChange24h > 0 ? "success" : "warning",
-            timestamp: Date.now(),
-          });
-          newLogs.push({
-            id: logIdRef.current++,
-            text: `VOL: ${lastConditions.volatilityIndex?.toFixed(0) || "0"} [${lastConditions.volatility}]`,
-            type: lastConditions.volatility === "LOW" ? "success" :
-                  lastConditions.volatility === "HIGH" ? "warning" : "info",
-            timestamp: Date.now() + 50,
-          });
-          newLogs.push({
-            id: logIdRef.current++,
-            text: `GAS: ${lastConditions.gasPrice?.toFixed(0) || "30"} gwei`,
-            type: "info",
-            timestamp: Date.now() + 100,
-          });
+          const volEmoji = lastConditions.volatility === "LOW" ? "" :
+                          lastConditions.volatility === "MEDIUM" ? "" :
+                          lastConditions.volatility === "HIGH" ? "" : "";
+          addLog(
+            `${volEmoji} Volatility: ${lastConditions.volatility} (index: ${lastConditions.volatilityIndex?.toFixed(0) || "0"})`,
+            lastConditions.volatility === "LOW" ? "success" :
+            lastConditions.volatility === "EXTREME" ? "error" : "warning"
+          );
         }
         break;
 
       case "BRIDGING_TO_BASE":
-        newLogs.push({
-          id: logIdRef.current++,
-          text: "DEPLOYING TO BASE...",
-          type: "warning",
-          timestamp: Date.now(),
-        });
-        newLogs.push({
-          id: logIdRef.current++,
-          text: "[CIRCLE GATEWAY] BRIDGE TX",
-          type: "info",
-          timestamp: Date.now() + 100,
-        });
-        newLogs.push({
-          id: logIdRef.current++,
-          text: "[LI.FI SDK] EXECUTING...",
-          type: "info",
-          timestamp: Date.now() + 200,
-        });
+        addLog("DECISION: Deploy capital to Base", "action");
+        setTimeout(() => addLog("LI.FI bridge initiated...", "info"), 500);
+        setTimeout(() => addLog("Circle Gateway: TX pending", "info"), 1000);
         break;
 
       case "FARMING":
-        newLogs.push({
-          id: logIdRef.current++,
-          text: "[UNISWAP V4] HOOK ACTIVE",
-          type: "success",
-          timestamp: Date.now(),
-        });
-        newLogs.push({
-          id: logIdRef.current++,
-          text: "YIELD GENERATING...",
-          type: "success",
-          timestamp: Date.now() + 100,
-        });
+        addLog("Deployed on Uniswap V4!", "success");
+        if (lastDecision?.suggestedFee) {
+          addLog(`Dynamic fee: ${(lastDecision.suggestedFee / 100).toFixed(2)}%`, "success");
+        }
+        addLog("Yield generation active", "success");
         break;
 
       case "BRIDGING_TO_ARC":
-        newLogs.push({
-          id: logIdRef.current++,
-          text: "PROTECTING CAPITAL...",
-          type: "warning",
-          timestamp: Date.now(),
-        });
-        newLogs.push({
-          id: logIdRef.current++,
-          text: "[CIRCLE ARC] RETURN TX",
-          type: "info",
-          timestamp: Date.now() + 100,
-        });
+        addLog("DECISION: Return to safe harbor", "action");
+        setTimeout(() => addLog("Withdrawing from Base...", "warning"), 500);
+        setTimeout(() => addLog("LI.FI bridge: Arc bound", "info"), 1000);
         break;
 
       case "CIRCUIT_BREAKER":
-        newLogs.push({
-          id: logIdRef.current++,
-          text: "⚠ CIRCUIT BREAKER TRIGGERED",
-          type: "error",
-          timestamp: Date.now(),
-        });
-        newLogs.push({
-          id: logIdRef.current++,
-          text: "EMERGENCY EXIT TO ARC",
-          type: "error",
-          timestamp: Date.now() + 100,
-        });
+        addLog("CIRCUIT BREAKER TRIGGERED", "error");
+        addLog("Emergency exit to Arc", "error");
+        addLog("Capital protected", "warning");
         break;
 
       case "IDLE":
         if (lastDecision?.action === "HOLD") {
-          newLogs.push({
-            id: logIdRef.current++,
-            text: "[CIRCLE ARC] SAFE HARBOR",
-            type: "info",
-            timestamp: Date.now(),
-          });
+          addLog("Safe harbor: Monitoring markets", "info");
         }
         break;
     }
 
-    // Decision logs
-    if (lastDecision) {
+    // Decision reasoning
+    if (lastDecision && lastDecision.action !== "HOLD") {
       const confidence = Math.round(lastDecision.confidence * 100);
-      newLogs.push({
-        id: logIdRef.current++,
-        text: `${lastDecision.action} [${confidence}%]`,
-        type: lastDecision.action === "DEPLOY" ? "success" :
-              lastDecision.action === "WITHDRAW" ? "warning" :
-              lastDecision.action === "EMERGENCY_EXIT" ? "error" : "info",
-        timestamp: Date.now() + 200,
-      });
-    }
-
-    if (newLogs.length > 0) {
-      setLogs(prev => [...newLogs, ...prev].slice(0, 8));
+      setTimeout(() => {
+        addLog(`Confidence: ${confidence}%`, "info");
+      }, 300);
     }
   }, [agentState, isAgentRunning]);
 
   // Clear logs when agent stops
   useEffect(() => {
-    if (!isAgentRunning) {
-      lastActionRef.current = null;
+    if (!isAgentRunning && lastStateRef.current !== null) {
+      lastStateRef.current = null;
+      addLog("Agent paused", "warning");
     }
   }, [isAgentRunning]);
 
   if (logs.length === 0) return null;
 
   return (
-    <div className="fixed top-6 left-6 z-50 terminal max-w-xs">
-      {logs.map((log, index) => (
-        <div
-          key={log.id}
-          className={`terminal-line ${log.type}`}
-          style={{ animationDelay: `${index * 50}ms` }}
-        >
-          <span className="text-whisper mr-2">{">"}</span>
-          {log.text}
+    <motion.div
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.5 }}
+      className="fixed top-6 left-6 z-50 max-w-sm"
+    >
+      <div className="glass-subtle rounded-lg overflow-hidden">
+        {/* Header */}
+        <div className="px-3 py-2 border-b border-white/5 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${isAgentRunning ? "bg-green-500 animate-pulse" : "bg-white/30"}`} />
+            <span className="text-[10px] text-white/50 font-mono uppercase tracking-wider">
+              Agent Log
+            </span>
+          </div>
+          <span className="text-[10px] text-white/30 font-mono">
+            {formatTime(Date.now())}
+          </span>
         </div>
-      ))}
-    </div>
+
+        {/* Logs */}
+        <div className="p-2 space-y-1 max-h-48 overflow-hidden">
+          <AnimatePresence mode="popLayout">
+            {logs.map((log) => (
+              <motion.div
+                key={log.id}
+                initial={{ opacity: 0, y: -10, height: 0 }}
+                animate={{ opacity: 1, y: 0, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+                className={`text-xs font-mono px-2 py-1 rounded flex items-start gap-2 ${
+                  log.type === "success" ? "bg-green-500/10 text-green-400" :
+                  log.type === "warning" ? "bg-yellow-500/10 text-yellow-400" :
+                  log.type === "error" ? "bg-red-500/10 text-red-400" :
+                  log.type === "action" ? "bg-purple-500/10 text-purple-400" :
+                  "bg-white/5 text-white/60"
+                }`}
+              >
+                <span className="text-white/30 shrink-0">
+                  {formatTime(log.timestamp).slice(0, 5)}
+                </span>
+                <span className="leading-relaxed">{log.text}</span>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+      </div>
+    </motion.div>
   );
 }
