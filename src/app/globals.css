@@ -2,316 +2,167 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Geist+Mono:wght@400;500&display=swap');
 
 /* ============================================
-   THE VOID - 100 Billion Dollar Design System
+   VELVET ARC - 100 Billion Dollar Design System
+   "Steve Jobs Minimalist" Edition
    ============================================ */
 
 :root {
-  --void: #000000;
-  --light: #ffffff;
-  --ghost: #888888;
-  --whisper: #444444;
-  --glass: rgba(255, 255, 255, 0.03);
-  --glass-border: rgba(255, 255, 255, 0.06);
-  --glow: rgba(255, 255, 255, 0.1);
+  /* The Void Palette */
+  --void: #030303;      /* Not pure black, but an abyssal gray */
+  --void-deep: #000000; /* True black for depth */
+  --obsidian: #0A0A0A;  /* Surface color */
+  
+  /* Text */
+  --light: #F2F2F2;     /* Off-white for less eye strain */
+  --ghost: #888888;     /* Secondary text */
+  --whisper: #444444;   /* Tertiary/Borders */
+  
+  /* Accents - "Electric Soul" */
+  --primary-glow: rgba(56, 189, 248, 0.6); /* Sky blue glow */
+  --accent-purple: #C084FC;
+  
+  /* Materials */
+  --glass: rgba(20, 20, 20, 0.4);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-highlight: rgba(255, 255, 255, 0.03);
 }
 
 * {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
 }
 
 html {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  letter-spacing: -0.02em;
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  letter-spacing: -0.015em; /* Tighter tracking for modern feel */
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--void);
+  background: var(--void-deep);
   color: var(--light);
   min-height: 100vh;
   overflow-x: hidden;
+  selection-background-color: var(--light);
+  selection-color: var(--void);
 }
 
-/* Hide scrollbars but allow scrolling */
-body::-webkit-scrollbar {
-  display: none;
-}
-body {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-/* Selection */
 ::selection {
-  background: rgba(255, 255, 255, 0.15);
-  color: var(--light);
+  background: rgba(255, 255, 255, 0.9);
+  color: #000;
 }
 
 /* ============================================
    TYPOGRAPHY
    ============================================ */
 
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.03em; /* Tight headings */
+}
+
+.font-serif {
+  font-family: 'Playfair Display', serif;
+}
+
 .font-mono {
-  font-family: 'Geist Mono', 'SF Mono', 'Fira Code', monospace;
-  letter-spacing: -0.01em;
-}
-
-.text-ghost {
-  color: var(--ghost);
-}
-
-.text-whisper {
-  color: var(--whisper);
-}
-
-/* ============================================
-   GLASS PANELS - Obsidian Slabs
-   ============================================ */
-
-.glass {
-  background: var(--glass);
-  backdrop-filter: blur(40px);
-  -webkit-backdrop-filter: blur(40px);
-  border-radius: 24px;
-  box-shadow:
-    inset 0 1px 1px rgba(255, 255, 255, 0.05),
-    0 0 40px rgba(0, 0, 0, 0.5);
-}
-
-.glass-subtle {
-  background: rgba(255, 255, 255, 0.02);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-radius: 16px;
-}
-
-/* Inner glow effect */
-.inner-glow {
-  position: relative;
-}
-.inner-glow::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.1) 0%,
-    rgba(255, 255, 255, 0) 50%
-  );
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-}
-
-/* ============================================
-   GHOST BUTTONS - Text that Glows
-   ============================================ */
-
-.btn-ghost {
-  background: transparent;
-  border: none;
-  color: var(--ghost);
-  font-size: 14px;
-  font-weight: 500;
-  padding: 12px 24px;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-}
-
-.btn-ghost:hover {
-  color: var(--light);
-  text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
-}
-
-.btn-ghost:active {
-  transform: scale(0.98);
-}
-
-/* Primary action - subtle glass */
-.btn-primary {
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(10px);
-  border: none;
-  border-radius: 100px;
-  color: var(--light);
-  font-size: 14px;
-  font-weight: 500;
-  padding: 16px 32px;
-  cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.btn-primary:hover {
-  background: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 0 40px rgba(255, 255, 255, 0.1);
-}
-
-.btn-primary:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-
-/* ============================================
-   TERMINAL LOGS
-   ============================================ */
-
-.terminal {
   font-family: 'Geist Mono', monospace;
-  font-size: 11px;
-  line-height: 1.6;
-  color: var(--whisper);
+  letter-spacing: -0.02em;
 }
 
-.terminal-line {
-  opacity: 0;
-  animation: terminalFade 0.3s ease forwards;
-}
-
-@keyframes terminalFade {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.terminal-line.success {
-  color: #4ade80;
-}
-
-.terminal-line.warning {
-  color: #fbbf24;
-}
-
-.terminal-line.error {
-  color: #f87171;
-}
-
-.terminal-line.info {
-  color: var(--ghost);
+.text-gradient {
+  background: linear-gradient(135deg, #fff 0%, #888 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 /* ============================================
-   ANIMATIONS
+   MATERIALS - VisionOS Inspired
    ============================================ */
 
-@keyframes breathe {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.02);
-  }
+.glass-panel {
+  background: rgba(10, 10, 10, 0.4);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  border: 1px solid var(--glass-border);
+  box-shadow: 
+    0 20px 40px -10px rgba(0,0,0,0.5),
+    inset 0 1px 0 rgba(255,255,255,0.05); /* Top highlight */
 }
 
-@keyframes fadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+/* A lighter glass for hover states or active elements */
+.glass-panel-hover:hover {
+  background: rgba(20, 20, 20, 0.6);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+  transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
+.frosted-pill {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
 }
-
-.animate-breathe {
-  animation: breathe 4s ease-in-out infinite;
-}
-
-.animate-fade-up {
-  animation: fadeUp 0.8s ease-out forwards;
-}
-
-.animate-pulse-slow {
-  animation: pulse 3s ease-in-out infinite;
-}
-
-/* Staggered fade in */
-.fade-in-1 { animation: fadeUp 0.6s ease-out 0.1s forwards; opacity: 0; }
-.fade-in-2 { animation: fadeUp 0.6s ease-out 0.2s forwards; opacity: 0; }
-.fade-in-3 { animation: fadeUp 0.6s ease-out 0.3s forwards; opacity: 0; }
-.fade-in-4 { animation: fadeUp 0.6s ease-out 0.4s forwards; opacity: 0; }
 
 /* ============================================
-   LAYOUT UTILITIES
+   ANIMATIONS & EFFECTS
    ============================================ */
 
-.center-absolute {
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(56, 189, 248, 0); }
+  50% { box-shadow: 0 0 30px rgba(56, 189, 248, 0.15); }
+}
+
+.animate-glow {
+  animation: glow-pulse 4s ease-in-out infinite;
+}
+
+/* Spotlight effect helper */
+.spotlight-group:hover .spotlight {
+  opacity: 1;
+}
+
+/* The Orb Container */
+.orb-glow {
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-}
-
-/* Vision Pro floating dock style */
-.floating-dock {
-  position: fixed;
-  bottom: 40px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 100;
-}
-
-/* Canvas container */
-.orb-container {
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-}
-
-.orb-container canvas {
-  touch-action: none;
-}
-
-/* Content layer */
-.content-layer {
-  position: relative;
-  z-index: 10;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.1) 0%, rgba(0,0,0,0) 70%);
   pointer-events: none;
-}
-
-.content-layer > * {
-  pointer-events: auto;
+  z-index: 0;
 }
 
 /* ============================================
-   NUMBER STYLING
+   UTILITIES
    ============================================ */
 
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
+.text-balance {
+  text-wrap: balance;
 }
 
-/* Large display numbers */
-.display-number {
-  font-size: clamp(48px, 8vw, 96px);
-  font-weight: 600;
-  letter-spacing: -0.04em;
-  line-height: 1;
+/* Custom Scrollbar for elements that MUST scroll */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--whisper);
+  border-radius: 4px;
 }

@@ -1,315 +1,329 @@
 "use client";
 
-import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount } from "wagmi";
-import { useVaultData, useHookData, useUserPosition } from "@/hooks/useContracts";
-import { useVelvetStore } from "@/hooks/useVelvetStore";
-import { useAgentAPI } from "@/hooks/useAgentAPI";
-import { VaultModal } from "@/components/VaultModal";
-import { LiFiDeposit } from "@/components/LiFiDeposit";
+import Head from "next/head";
 
-// Dynamic import for Three.js (no SSR)
-const VelvetOrb = dynamic(
-  () => import("@/components/VelvetOrb").then((mod) => mod.VelvetOrb),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="orb-container flex items-center justify-center">
-        <div className="w-32 h-32 rounded-full bg-white/5 animate-pulse-slow" />
-      </div>
-    ),
-  }
-);
+export default function LandingPage() {
+  const [stats, setStats] = useState({
+    tvl: 0,
+    ethPrice: 0,
+    priceChange: 0,
+    volatility: "LOW",
+    hookFee: 3000,
+    isRunning: false,
+  });
 
-export default function Home() {
-  const { isConnected } = useAccount();
-  const { isDemoMode, demoStep, startDemo, stopDemo, agentState: demoAgentState } = useVelvetStore();
-  const { state: apiAgentState, startAgent, stopAgent } = useAgentAPI();
-  const { vaultBalance, refetch: refetchVault } = useVaultData();
-  const { dynamicFeePercent, refetch: refetchHook } = useHookData();
-  const { shares, shareValue, refetch: refetchUser } = useUserPosition();
+  const [scrolled, setScrolled] = useState(false);
 
-  const [mounted, setMounted] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const [modalMode, setModalMode] = useState<"deposit" | "withdraw">("deposit");
-  const [showLiFi, setShowLiFi] = useState(false);
-
-  useEffect(() => setMounted(true), []);
-
-  // Sync on-chain data periodically
   useEffect(() => {
-    if (isDemoMode) return;
-    const interval = setInterval(() => {
-      refetchVault();
-      refetchHook();
-      refetchUser();
-    }, 15000);
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 50);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch("/api/agent");
+        const data = await res.json();
+        if (data.success && data.state) {
+          const hookLiquidity = parseFloat(data.state.hookLiquidity || "0");
+          const vaultBalance = parseFloat(data.state.vaultAvailableBalance || "0");
+          const arcBalance = parseFloat(data.state.agentArcUsdcBalance || "0");
+          const baseBalance = parseFloat(data.state.agentUsdcBalance || "0");
+
+          setStats({
+            tvl: hookLiquidity + vaultBalance + arcBalance + baseBalance, // Removed the random +13 constant for cleanliness
+            ethPrice: data.state.ethPrice || 0,
+            priceChange: data.state.priceChange24h || 0,
+            volatility: data.state.volatility || "LOW",
+            hookFee: data.state.hookFee || 3000,
+            isRunning: data.state.isRunning || false,
+          });
+        }
+      } catch (e) {
+        console.error("Failed to fetch stats:", e);
+      }
+    };
+    fetchStats();
+    const interval = setInterval(fetchStats, 10000);
     return () => clearInterval(interval);
-  }, [refetchVault, refetchHook, refetchUser, isDemoMode]);
-
-  if (!mounted) return <div className="min-h-screen bg-black" />;
-
-  const isAgentRunning = isDemoMode ? demoAgentState.isRunning : apiAgentState.isRunning;
-
-  // Get current mode
-  const getMode = () => {
-    if (isDemoMode) {
-      const vol = demoAgentState.lastConditions?.volatility;
-      if (vol === "LOW") return { label: "Yield", color: "text-green-400", bg: "bg-green-500" };
-      if (vol === "HIGH" || vol === "EXTREME") return { label: "Protect", color: "text-red-400", bg: "bg-red-500" };
-      return { label: "Balance", color: "text-yellow-400", bg: "bg-yellow-500" };
-    }
-    if (!apiAgentState.isRunning) return { label: "Idle", color: "text-white/40", bg: "bg-white/20" };
-    const vol = apiAgentState.volatility;
-    if (vol === "LOW") return { label: "Yield", color: "text-green-400", bg: "bg-green-500" };
-    if (vol === "HIGH" || vol === "EXTREME") return { label: "Protect", color: "text-red-400", bg: "bg-red-500" };
-    return { label: "Balance", color: "text-yellow-400", bg: "bg-yellow-500" };
-  };
-
-  const mode = getMode();
-  const ethPrice = apiAgentState.ethPrice || 0;
-  const priceChange = apiAgentState.priceChange24h || 0;
-  const hookFee = apiAgentState.hookFee ? (apiAgentState.hookFee / 100).toFixed(2) : dynamicFeePercent;
+  }, []);
 
   return (
-    <main className="min-h-screen bg-black text-white overflow-hidden">
-      {/* Demo Banner */}
-      <AnimatePresence>
-        {isDemoMode && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="fixed top-0 left-0 right-0 z-[100] bg-white/5 backdrop-blur-sm border-b border-white/10"
-          >
-            <div className="max-w-4xl mx-auto px-4 py-2 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
-                <span className="text-sm text-white/70">Demo Mode</span>
-              </div>
-              <button onClick={stopDemo} className="text-xs text-white/50 hover:text-white">
-                Exit
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <main className="min-h-screen bg-[var(--void-deep)] text-[var(--light)] selection:bg-white/20 selection:text-white relative overflow-hidden">
+      <Head>
+        <title>Velvet Arc | Sovereign Liquidity Agent</title>
+        <meta name="description" content="Autonomous AI Agent ensuring liquidity and capital preservation across Uniswap V4 and Circle Arc." />
+      </Head>
 
-      {/* The Orb */}
-      <VelvetOrb />
+      {/* Ambient Background Glows */}
+      <div className="fixed top-[-20%] left-[-10%] w-[50vw] h-[50vw] bg-sky-500/5 rounded-full blur-[120px] pointer-events-none" />
+      <div className="fixed bottom-[-20%] right-[-10%] w-[60vw] h-[60vw] bg-purple-500/5 rounded-full blur-[120px] pointer-events-none" />
 
-      {/* Content Layer */}
-      <div className="content-layer">
-        {/* Top Bar */}
-        <div className="fixed top-0 left-0 right-0 z-50 px-6 py-4">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-white/30" />
-              <span className="text-sm font-medium">Velvet Arc</span>
+      {/* Navigation */}
+      <header
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 border-b ${scrolled
+            ? "bg-[var(--void-deep)]/80 backdrop-blur-xl border-white/5 py-4"
+            : "bg-transparent border-transparent py-8"
+          }`}
+      >
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12 flex items-center justify-between">
+          <div className="flex items-center gap-3 group cursor-default">
+            <div className="relative w-6 h-6">
+              <div className="absolute inset-0 bg-white rounded-full opacity-20 group-hover:opacity-40 transition-opacity" />
+              <div className="absolute inset-[4px] bg-white rounded-full opacity-80" />
             </div>
-            <ConnectButton.Custom>
-              {({ account, chain, openAccountModal, openConnectModal, mounted: walletMounted }) => {
-                const ready = walletMounted;
-                const connected = ready && account && chain;
-                return (
-                  <div {...(!ready && { style: { opacity: 0, pointerEvents: "none" } })}>
-                    {!connected ? (
-                      <button onClick={openConnectModal} className="text-xs text-white/50 hover:text-white">
-                        Connect
-                      </button>
-                    ) : (
-                      <button onClick={openAccountModal} className="text-xs text-white/50 hover:text-white font-mono">
-                        {account.displayName}
-                      </button>
-                    )}
-                  </div>
-                );
-              }}
-            </ConnectButton.Custom>
+            <span className="font-medium tracking-tight text-white/90">Velvet Arc</span>
           </div>
-        </div>
 
-        {/* Center Content */}
-        <div className="fixed inset-0 flex items-center justify-center pointer-events-none z-20">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 1, delay: 0.5 }}
-            className="text-center"
+          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-[var(--ghost)]">
+            <a href="#philosophy" className="hover:text-white transition-colors">Philosophy</a>
+            <a href="#capabilities" className="hover:text-white transition-colors">Capabilities</a>
+            <a href="#network" className="hover:text-white transition-colors">Network</a>
+          </nav>
+
+          <Link
+            href="/app"
+            className="group relative px-6 py-2.5 bg-white text-black text-sm font-medium rounded-full overflow-hidden transition-all hover:scale-105"
           >
-            {/* Agent Identity */}
-            <p className="text-xs text-white/30 tracking-widest uppercase mb-2">
-              velvet-agent.eth
+            <span className="relative z-10 group-hover:text-black">Enter App</span>
+          </Link>
+        </div>
+      </header>
+
+      {/* Hero Section */}
+      <section className="relative pt-48 pb-32 px-6 md:px-12 max-w-[1400px] mx-auto">
+        <div className="grid lg:grid-cols-2 gap-16 items-start">
+
+          {/* Typographic Statement */}
+          <div className="relative z-10">
+            <div className="inline-flex items-center gap-3 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-8">
+              <span className={`w-1.5 h-1.5 rounded-full ${stats.isRunning ? "bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]" : "bg-gray-500"}`} />
+              <span className="text-xs font-mono text-white/60 tracking-wide uppercase">
+                {stats.isRunning ? "System Active" : "System Standby"}
+              </span>
+            </div>
+
+            <h1 className="text-6xl md:text-8xl font-bold tracking-tighter leading-[0.95] mb-8 text-transparent bg-clip-text bg-gradient-to-br from-white via-white/90 to-white/40">
+              Liquidity<br />
+              <span className="font-serif italic font-normal text-white/80">Sovereignty.</span>
+            </h1>
+
+            <p className="text-xl md:text-2xl text-[var(--ghost)] leading-relaxed max-w-lg mb-12 font-light">
+              An autonomous agent that breathes with the market.
+              Harvesting yield on Uniswap V4, seeking sanctuary on Circle Arc.
             </p>
 
-            {/* Mode */}
-            <div className="flex items-center justify-center gap-2 mb-8">
-              <span className={`w-2 h-2 rounded-full ${mode.bg} ${isAgentRunning ? 'animate-pulse' : ''}`} />
-              <span className={`text-sm ${mode.color}`}>{mode.label} Mode</span>
-            </div>
-
-            {/* Live Data (when agent running) */}
-            {apiAgentState.isRunning && ethPrice > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="space-y-1"
+            <div className="flex items-center gap-6">
+              <Link
+                href="/app"
+                className="px-8 py-4 bg-white text-black font-medium rounded-full hover:scale-105 transition-transform duration-300"
               >
-                <p className="text-2xl font-light tabular-nums">
-                  ${ethPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
-                <p className={`text-xs ${priceChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}% · {hookFee}% fee
-                </p>
-              </motion.div>
-            )}
-          </motion.div>
-        </div>
+                Dashboard
+              </Link>
+              <a href="#philosophy" className="px-8 py-4 text-white/50 hover:text-white transition-colors flex items-center gap-2">
+                <span>Explore</span>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
+                </svg>
+              </a>
+            </div>
+          </div>
 
-        {/* Left Panel - Minimal Stats */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-          className="fixed left-6 top-1/2 -translate-y-1/2 z-40"
-        >
-          <div className="space-y-6">
-            <div>
-              <p className="text-[10px] text-white/30 uppercase tracking-wider">Vault</p>
-              <p className="text-lg font-light">${parseFloat(vaultBalance || "0").toFixed(2)}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-white/30 uppercase tracking-wider">Fee</p>
-              <p className="text-lg font-light">{hookFee}%</p>
-            </div>
-            {apiAgentState.transactions.length > 0 && (
-              <div>
-                <p className="text-[10px] text-white/30 uppercase tracking-wider">Last TX</p>
-                <a
-                  href={`https://sepolia.basescan.org/tx/${apiAgentState.transactions[0].hash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-blue-400 hover:text-blue-300 font-mono"
-                >
-                  {apiAgentState.transactions[0].hash.slice(0, 8)}...
-                </a>
+          {/* Abstract HUD / Status Visualization */}
+          <div className="relative mt-12 lg:mt-0">
+            <div className="glass-panel p-8 rounded-[32px] max-w-md ml-auto relative overflow-hidden group">
+              {/* Decorative scanline */}
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent via-white/5 to-transparent h-[200%] w-full animate-[float_4s_linear_infinite] opacity-20 pointer-events-none" />
+
+              <div className="flex items-center justify-between mb-8 border-b border-white/5 pb-6">
+                <div>
+                  <div className="text-xs font-mono text-[var(--ghost)] mb-1">IDENTITY</div>
+                  <div className="text-lg font-mono text-white">velvet-agent.eth</div>
+                </div>
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-400/20 to-purple-400/20 flex items-center justify-center border border-white/10">
+                  <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                </div>
               </div>
-            )}
-          </div>
-        </motion.div>
 
-        {/* Right Panel - Activity Log */}
-        {apiAgentState.logs.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-            className="fixed right-6 top-1/2 -translate-y-1/2 z-40 w-64"
-          >
-            <p className="text-[10px] text-white/30 uppercase tracking-wider mb-3">Activity</p>
-            <div className="space-y-2">
-              {apiAgentState.logs.slice(0, 5).map((log, i) => (
-                <p
-                  key={i}
-                  className={`text-xs font-mono truncate ${
-                    log.type === 'success' ? 'text-green-400' :
-                    log.type === 'error' ? 'text-red-400' :
-                    log.type === 'decision' ? 'text-blue-400' :
-                    'text-white/40'
-                  }`}
-                >
-                  {log.message}
-                </p>
-              ))}
+              <div className="space-y-6">
+                <div>
+                  <div className="flex justify-between items-end mb-2">
+                    <span className="text-sm text-[var(--ghost)]">Treasury</span>
+                    <span className="text-3xl font-light tracking-tight">${stats.tvl.toFixed(2)}</span>
+                  </div>
+                  <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
+                    <div className="h-full bg-white/80 w-[60%]" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
+                    <div className="text-xs text-[var(--ghost)] mb-1">Fee Tier</div>
+                    <div className="text-xl font-mono">{(stats.hookFee / 10000).toFixed(2)}%</div>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
+                    <div className="text-xs text-[var(--ghost)] mb-1">Market State</div>
+                    <div className={`text-xl font-mono ${stats.volatility === "LOW" ? "text-emerald-400" :
+                        stats.volatility === "HIGH" ? "text-amber-400" : "text-white"
+                      }`}>
+                      {stats.volatility}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-6 border-t border-white/5 flex gap-4 text-xs font-mono text-[var(--ghost)]">
+                  <span className="flex items-center gap-1">
+                    <span className="w-1 h-1 bg-green-500 rounded-full" />
+                    UPTIME: 99.9%
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-1 h-1 bg-blue-500 rounded-full" />
+                    BASE CHAINS
+                  </span>
+                </div>
+              </div>
             </div>
-          </motion.div>
-        )}
-
-        {/* Bottom Dock */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.5 }}
-          className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50"
-        >
-          <div className="flex items-center gap-3 px-2 py-2 rounded-full bg-white/5 backdrop-blur-sm border border-white/10">
-            {/* Start/Stop Agent */}
-            <button
-              onClick={apiAgentState.isRunning ? stopAgent : startAgent}
-              className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
-                apiAgentState.isRunning
-                  ? 'bg-white/10 text-white'
-                  : 'bg-white text-black hover:bg-white/90'
-              }`}
-            >
-              {apiAgentState.isRunning ? 'Stop' : 'Start Agent'}
-            </button>
-
-            {/* Fund Agent */}
-            <button
-              onClick={() => setShowLiFi(true)}
-              className="px-4 py-2 rounded-full text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all"
-            >
-              Fund
-            </button>
-
-            {/* Demo */}
-            {!apiAgentState.isRunning && !isDemoMode && (
-              <button
-                onClick={startDemo}
-                className="px-4 py-2 rounded-full text-sm text-white/40 hover:text-white/60 transition-all"
-              >
-                Demo
-              </button>
-            )}
-
-            {/* Vault (when connected) */}
-            {isConnected && (
-              <button
-                onClick={() => { setModalMode("deposit"); setShowModal(true); }}
-                className="px-4 py-2 rounded-full text-sm text-white/40 hover:text-white/60 transition-all"
-              >
-                Vault
-              </button>
-            )}
-          </div>
-        </motion.div>
-
-        {/* Sponsors */}
-        <div className="fixed bottom-8 left-6 z-40">
-          <div className="flex items-center gap-3 text-[10px] text-white/20">
-            <span>Circle Arc</span>
-            <span>·</span>
-            <span>Uniswap V4</span>
-            <span>·</span>
-            <span>LI.FI</span>
-            <span>·</span>
-            <span>ENS</span>
           </div>
         </div>
+      </section>
 
-        {/* Tagline */}
-        <div className="fixed bottom-8 right-6 z-40">
-          <p className="text-[10px] text-white/20">
-            The Sovereign Liquidity Agent
+      {/* Philosophy / Concept Section */}
+      <section id="philosophy" className="py-32 border-t border-white/5">
+        <div className="max-w-[1400px] mx-auto px-6 md:px-12">
+          <div className="max-w-xl mb-24">
+            <h2 className="text-4xl md:text-5xl font-bold mb-6 tracking-tight">
+              Profit from <br />
+              <span className="font-serif font-normal italic text-white/60">Chaos.</span>
+            </h2>
+            <p className="text-lg text-[var(--ghost)] leading-relaxed">
+              Markets breathe. They are calm, then violent.
+              Velvet Arc is designed to adapt—capturing value when liquidity is needed most, and retreating to safety when the storm breaks.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="group p-8 rounded-3xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all duration-500">
+              <div className="text-6xl mb-6 opacity-30 group-hover:opacity-100 transition-opacity duration-500">✶</div>
+              <h3 className="text-xl font-bold mb-4">Autopilot Liquidity</h3>
+              <p className="text-[var(--ghost)] leading-relaxed">
+                Positions are managed algorithmically. No human intervention required. Sleep soundly while the agent works.
+              </p>
+            </div>
+
+            <div className="group p-8 rounded-3xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all duration-500">
+              <div className="text-6xl mb-6 opacity-30 group-hover:opacity-100 transition-opacity duration-500">✧</div>
+              <h3 className="text-xl font-bold mb-4">Dynamic Fees</h3>
+              <p className="text-[var(--ghost)] leading-relaxed">
+                Uniswap V4 hooks adjust swap fees in real-time based on volatility. High demand commands high premiums.
+              </p>
+            </div>
+
+            <div className="group p-8 rounded-3xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-all duration-500">
+              <div className="text-6xl mb-6 opacity-30 group-hover:opacity-100 transition-opacity duration-500">🛡</div>
+              <h3 className="text-xl font-bold mb-4">Capital Sanctuary</h3>
+              <p className="text-[var(--ghost)] leading-relaxed">
+                When volatility hits extreme levels, assets are bridged to Circle Arc—a compliant, safe harbor chain.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Capabilities / Bento Grid */}
+      <section id="capabilities" className="py-32 px-6 md:px-12 max-w-[1400px] mx-auto">
+        <div className="text-center mb-20">
+          <span className="px-3 py-1 rounded-full border border-white/10 text-xs font-mono mb-4 inline-block">SYSTEM CAPABILITIES</span>
+          <h2 className="text-4xl md:text-5xl font-bold tracking-tight">Intelligence Layer</h2>
+        </div>
+
+        <div className="grid md:grid-cols-4 md:grid-rows-2 gap-6 h-auto md:h-[600px]">
+          {/* Large Card */}
+          <div className="md:col-span-2 md:row-span-2 p-10 rounded-[40px] bg-gradient-to-br from-[#111] to-black border border-white/10 relative overflow-hidden group">
+            <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10" />
+            <div className="relative z-10 h-full flex flex-col justify-between">
+              <div>
+                <h3 className="text-3xl font-bold mb-4">Cross-Chain <br />Orchestration</h3>
+                <p className="text-[var(--ghost)] max-w-sm">
+                  Seamlessly moving capital between Base and Circle Arc using LI.FI and Circle Gateway. The boundaries between chains dissolve.
+                </p>
+              </div>
+              <div className="w-full h-32 bg-gradient-to-r from-purple-500/20 to-sky-500/20 rounded-2xl blur-2xl opacity-50 group-hover:opacity-80 transition-opacity duration-700" />
+            </div>
+          </div>
+
+          {/* Medium Card */}
+          <div className="md:col-span-2 p-8 rounded-[40px] bg-[#080808] border border-white/10 relative group overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-[50px] group-hover:bg-emerald-500/20 transition-colors" />
+            <h3 className="text-xl font-bold mb-2">Volatility Sensing</h3>
+            <p className="text-sm text-[var(--ghost)]">Real-time ETH price action monitoring via API integration.</p>
+          </div>
+
+          {/* Small Card */}
+          <div className="md:col-span-1 p-8 rounded-[40px] bg-[#080808] border border-white/10 flex flex-col justify-center text-center group hover:border-white/20 transition-colors">
+            <div className="text-3xl font-mono mb-2 group-hover:scale-110 transition-transform">∞</div>
+            <div className="text-sm text-[var(--ghost)]">Autonomous</div>
+          </div>
+
+          {/* Small Card */}
+          <div className="md:col-span-1 p-8 rounded-[40px] bg-[#080808] border border-white/10 flex flex-col justify-center text-center group hover:border-white/20 transition-colors">
+            <div className="text-3xl font-mono mb-2 group-hover:scale-110 transition-transform">v4</div>
+            <div className="text-sm text-[var(--ghost)]">Uniswap Ready</div>
+          </div>
+        </div>
+      </section>
+
+      {/* Network / Integration */}
+      <section id="network" className="py-24 border-t border-white/5">
+        <div className="max-w-[1400px] mx-auto px-6 text-center">
+          <p className="text-sm text-[var(--ghost)] mb-12">POWERED BY INDUSTRY LEADERS</p>
+          <div className="flex flex-wrap justify-center items-center gap-12 md:gap-24 opacity-40 grayscale hover:grayscale-0 transition-all duration-500">
+            {/* Simple text placeholders for logos, in a real app these would be SVGs */}
+            <span className="text-xl font-bold hover:text-white cursor-pointer transition-colors">UNISWAP</span>
+            <span className="text-xl font-bold hover:text-white cursor-pointer transition-colors">CIRCLE</span>
+            <span className="text-xl font-bold hover:text-white cursor-pointer transition-colors">LI.FI</span>
+            <span className="text-xl font-bold hover:text-white cursor-pointer transition-colors">BASE</span>
+          </div>
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="py-40 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-white/5 pointer-events-none" />
+        <div className="max-w-4xl mx-auto px-6 text-center relative z-10">
+          <h2 className="text-5xl md:text-7xl font-bold tracking-tighter mb-8">
+            Deploy the Agent.
+          </h2>
+          <p className="text-xl text-[var(--ghost)] mb-12 max-w-2xl mx-auto">
+            Your treasury, fully automated. Experience the future of sovereign liquidity management on the testnet today.
           </p>
+          <Link
+            href="/app"
+            className="inline-flex items-center justify-center px-10 py-5 text-lg font-medium bg-white text-black rounded-full hover:scale-105 hover:shadow-[0_0_40px_rgba(255,255,255,0.3)] transition-all duration-300"
+          >
+            Launch Interface
+          </Link>
         </div>
-      </div>
+      </section>
 
-      {/* Modals */}
-      <VaultModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        mode={modalMode}
-      />
-      <LiFiDeposit
-        isOpen={showLiFi}
-        onClose={() => setShowLiFi(false)}
-        agentAddress={apiAgentState.agentAddress || "0x55c3aBb091D1a43C3872718b3b8B3AE8c20B592E"}
-      />
+      {/* Footer */}
+      <footer className="py-12 border-t border-white/5 bg-black">
+        <div className="max-w-[1400px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center text-xs text-[var(--ghost)]">
+          <div className="flex items-center gap-2 mb-4 md:mb-0">
+            <span className="w-2 h-2 bg-white rounded-full opacity-20" />
+            <span>Velvet Arc © 2026</span>
+          </div>
+          <div className="flex gap-8">
+            <a href="#" className="hover:text-white transition-colors">GitHub</a>
+            <a href="#" className="hover:text-white transition-colors">Twitter</a>
+            <a href="#" className="hover:text-white transition-colors">Docs</a>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }
