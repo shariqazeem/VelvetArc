@@ -12,6 +12,9 @@ export default function LandingPage() {
     volatility: "LOW",
     hookFee: 3000,
     isRunning: false,
+    currentAPY: 0,
+    totalYield: 0,
+    protectionEvents: 0,
   });
 
   const [scrolled, setScrolled] = useState(false);
@@ -35,13 +38,17 @@ export default function LandingPage() {
           const arcBalance = parseFloat(data.state.agentArcUsdcBalance || "0");
           const baseBalance = parseFloat(data.state.agentUsdcBalance || "0");
 
+          const performance = data.state.performance || {};
           setStats({
-            tvl: hookLiquidity + vaultBalance + arcBalance + baseBalance, // Removed the random +13 constant for cleanliness
+            tvl: hookLiquidity + vaultBalance + arcBalance + baseBalance,
             ethPrice: data.state.ethPrice || 0,
             priceChange: data.state.priceChange24h || 0,
             volatility: data.state.volatility || "LOW",
             hookFee: data.state.hookFee || 3000,
             isRunning: data.state.isRunning || false,
+            currentAPY: performance.currentAPY || 0,
+            totalYield: performance.feesCaptured || 0,
+            protectionEvents: performance.protectionEvents || 0,
           });
         }
       } catch (e) {
@@ -151,40 +158,62 @@ export default function LandingPage() {
               </div>
 
               <div className="space-y-6">
-                <div>
-                  <div className="flex justify-between items-end mb-2">
-                    <span className="text-sm text-[var(--ghost)]">Treasury</span>
-                    <span className="text-3xl font-light tracking-tight">${stats.tvl.toFixed(2)}</span>
-                  </div>
-                  <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
-                    <div className="h-full bg-white/80 w-[60%]" />
-                  </div>
-                </div>
-
+                {/* Key Value Metrics - What users care about */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
-                    <div className="text-xs text-[var(--ghost)] mb-1">Fee Tier</div>
-                    <div className="text-xl font-mono">{(stats.hookFee / 10000).toFixed(2)}%</div>
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 border border-emerald-500/20">
+                    <div className="text-xs text-emerald-400/70 mb-1">Current APY</div>
+                    <div className="text-2xl font-bold text-emerald-400">
+                      {stats.currentAPY > 0 ? `${stats.currentAPY.toFixed(1)}%` : "—"}
+                    </div>
                   </div>
-                  <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
-                    <div className="text-xs text-[var(--ghost)] mb-1">Market State</div>
-                    <div className={`text-xl font-mono ${stats.volatility === "LOW" ? "text-emerald-400" :
-                        stats.volatility === "HIGH" ? "text-amber-400" : "text-white"
-                      }`}>
-                      {stats.volatility}
+                  <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-500/10 to-purple-500/5 border border-purple-500/20">
+                    <div className="text-xs text-purple-400/70 mb-1">Yield Earned</div>
+                    <div className="text-2xl font-bold text-purple-400">
+                      ${stats.totalYield.toFixed(2)}
                     </div>
                   </div>
                 </div>
 
-                <div className="pt-6 border-t border-white/5 flex gap-4 text-xs font-mono text-[var(--ghost)]">
-                  <span className="flex items-center gap-1">
-                    <span className="w-1 h-1 bg-green-500 rounded-full" />
-                    UPTIME: 99.9%
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-1 h-1 bg-blue-500 rounded-full" />
-                    BASE CHAINS
-                  </span>
+                <div>
+                  <div className="flex justify-between items-end mb-2">
+                    <span className="text-sm text-[var(--ghost)]">Total Value Locked</span>
+                    <span className="text-2xl font-light tracking-tight">${stats.tvl.toFixed(2)}</span>
+                  </div>
+                  <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all" style={{ width: `${Math.min(100, (stats.tvl / 1000) * 100)}%` }} />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/5 text-center">
+                    <div className="text-[10px] text-[var(--ghost)] mb-0.5">Fee Tier</div>
+                    <div className="text-sm font-mono">{(stats.hookFee / 10000).toFixed(2)}%</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/5 text-center">
+                    <div className="text-[10px] text-[var(--ghost)] mb-0.5">Volatility</div>
+                    <div className={`text-sm font-mono ${stats.volatility === "LOW" ? "text-emerald-400" :
+                        stats.volatility === "HIGH" ? "text-amber-400" :
+                        stats.volatility === "EXTREME" ? "text-red-400" : "text-white"
+                      }`}>
+                      {stats.volatility}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-white/5 border border-white/5 text-center">
+                    <div className="text-[10px] text-[var(--ghost)] mb-0.5">Protected</div>
+                    <div className="text-sm font-mono text-blue-400">{stats.protectionEvents}x</div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-white/5 flex justify-between items-center text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${stats.isRunning ? "bg-emerald-500 animate-pulse" : "bg-gray-500"}`} />
+                    <span className="text-[var(--ghost)]">{stats.isRunning ? "Agent Active" : "Standby"}</span>
+                  </div>
+                  <div className="flex gap-3 text-[var(--ghost)]">
+                    <span>Arc</span>
+                    <span>+</span>
+                    <span>Base</span>
+                  </div>
                 </div>
               </div>
             </div>

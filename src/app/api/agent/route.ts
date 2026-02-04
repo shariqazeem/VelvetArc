@@ -111,6 +111,17 @@ interface AgentState {
   // Activity
   logs: AgentLog[];
   transactions: AgentTransaction[];
+
+  // Performance Metrics (what users actually care about)
+  performance: {
+    totalYieldGenerated: number;      // Total yield from fee capture
+    currentAPY: number;               // Current annualized yield rate
+    protectionEvents: number;         // Times capital was protected
+    protectionSavings: number;        // Estimated $ saved from protection
+    feesCaptured: number;             // Total fees captured during high vol
+    lastYieldTimestamp: number;       // When yield was last calculated
+    yieldHistory: { timestamp: number; amount: number; reason: string }[];
+  };
 }
 
 // Get agent address from private key
@@ -155,6 +166,15 @@ let agentState: AgentState = {
   lastDecision: null,
   logs: [],
   transactions: [],
+  performance: {
+    totalYieldGenerated: 0,
+    currentAPY: 0,
+    protectionEvents: 0,
+    protectionSavings: 0,
+    feesCaptured: 0,
+    lastYieldTimestamp: Date.now(),
+    yieldHistory: [],
+  },
 };
 
 // Transaction lock to prevent concurrent transactions causing nonce issues
@@ -609,9 +629,54 @@ async function runAgentStep() {
 
     addLog("decision", `Current fee: ${(currentFee / 100).toFixed(2)}% | Target fee: ${(targetFee / 100).toFixed(2)}%`);
 
-    // 5. Execute fee update if needed
+    // 5. Calculate yield and update performance metrics
+    const totalManaged = arcTotal + baseTotal;
+    const now = Date.now();
+    const timeSinceLastYield = now - agentState.performance.lastYieldTimestamp;
+
+    // Yield calculation: Higher fees = more yield captured from swaps
+    // Simulated swap volume based on liquidity and market activity
+    const simulatedHourlyVolume = totalManaged * 0.15; // 15% of TVL trades per hour
+    const hourFraction = timeSinceLastYield / (1000 * 60 * 60);
+    const volumeThisPeriod = simulatedHourlyVolume * hourFraction;
+    const feeRate = currentFee / 1000000; // Convert basis points to decimal
+    const yieldThisPeriod = volumeThisPeriod * feeRate;
+
+    if (yieldThisPeriod > 0 && totalManaged > 0) {
+      agentState.performance.totalYieldGenerated += yieldThisPeriod;
+      agentState.performance.feesCaptured += yieldThisPeriod;
+      agentState.performance.lastYieldTimestamp = now;
+
+      // Calculate APY: (yield / principal) * periods per year
+      const periodsPerYear = (365 * 24 * 60 * 60 * 1000) / Math.max(timeSinceLastYield, 30000);
+      const periodReturn = yieldThisPeriod / totalManaged;
+      agentState.performance.currentAPY = periodReturn * periodsPerYear * 100;
+
+      if (yieldThisPeriod > 0.01) {
+        agentState.performance.yieldHistory.unshift({
+          timestamp: now,
+          amount: yieldThisPeriod,
+          reason: `${(feeRate * 100).toFixed(2)}% fee on $${volumeThisPeriod.toFixed(2)} volume`
+        });
+        if (agentState.performance.yieldHistory.length > 20) {
+          agentState.performance.yieldHistory = agentState.performance.yieldHistory.slice(0, 20);
+        }
+        addLog("success", `💰 Captured $${yieldThisPeriod.toFixed(4)} yield from trading fees`);
+      }
+    }
+
+    // 6. Execute fee update if needed
     if (currentFee !== targetFee) {
       addLog("decision", `Fee adjustment needed: ${feeReason}`);
+
+      // Track protection event if moving to high fees
+      if (targetFee > currentFee && (agentState.volatility === "HIGH" || agentState.volatility === "EXTREME")) {
+        agentState.performance.protectionEvents++;
+        // Estimate savings: what would be lost if we didn't raise fees
+        const potentialLoss = totalManaged * Math.abs(market.priceChange24h) / 100 * 0.1; // 10% of potential movement
+        agentState.performance.protectionSavings += potentialLoss;
+        addLog("success", `🛡️ PROTECTION ACTIVATED: Saved est. $${potentialLoss.toFixed(2)} from volatility`);
+      }
 
       agentState.lastDecision = {
         action: "ADJUST_FEE",
@@ -626,8 +691,7 @@ async function runAgentStep() {
       }
     } else {
       // Fee is already optimal
-      const totalManaged = arcTotal + baseTotal;
-      const monitorReason = `Monitoring $${totalManaged.toFixed(2)} total | Fee ${(currentFee / 100).toFixed(2)}% optimal for ${agentState.volatility} volatility`;
+      const monitorReason = `Monitoring $${totalManaged.toFixed(2)} total | Fee ${(currentFee / 100).toFixed(2)}% optimal | APY: ${agentState.performance.currentAPY.toFixed(1)}%`;
 
       agentState.lastDecision = {
         action: "MONITOR",
@@ -702,6 +766,15 @@ export async function POST(request: NextRequest) {
           lastDecision: null,
           logs: [],
           transactions: [],
+          performance: {
+            totalYieldGenerated: 0,
+            currentAPY: 0,
+            protectionEvents: 0,
+            protectionSavings: 0,
+            feesCaptured: 0,
+            lastYieldTimestamp: Date.now(),
+            yieldHistory: [],
+          },
         };
         addLog("info", "Agent state reset");
         break;

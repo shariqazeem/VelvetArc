@@ -60,6 +60,17 @@ export interface APIAgentState {
 
   // Transactions
   transactions: AgentTransaction[];
+
+  // Performance metrics
+  performance: {
+    totalYieldGenerated: number;
+    currentAPY: number;
+    protectionEvents: number;
+    protectionSavings: number;
+    feesCaptured: number;
+    lastYieldTimestamp: number;
+    yieldHistory: { timestamp: number; amount: number; reason: string }[];
+  };
 }
 
 type AgentAction =
@@ -97,6 +108,15 @@ const DEFAULT_STATE: APIAgentState = {
   lastDecision: null,
   logs: [],
   transactions: [],
+  performance: {
+    totalYieldGenerated: 0,
+    currentAPY: 0,
+    protectionEvents: 0,
+    protectionSavings: 0,
+    feesCaptured: 0,
+    lastYieldTimestamp: Date.now(),
+    yieldHistory: [],
+  },
 };
 
 const POLL_INTERVAL = 5000; // Poll every 5 seconds when running

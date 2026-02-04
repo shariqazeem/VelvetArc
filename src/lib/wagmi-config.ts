@@ -31,6 +31,14 @@ export const CONTRACTS = {
   arcUsdc: "0x3600000000000000000000000000000000000000" as `0x${string}`,
   baseUsdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as `0x${string}`,
   arcGateway: "0x0077777d7EBA4688BDeF3E311b846F25870A19B9" as `0x${string}`,
+  // Uniswap V4 on Base Sepolia (official deployments)
+  poolManager: (process.env.NEXT_PUBLIC_BASE_POOL_MANAGER || "0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408") as `0x${string}`,
+  positionManager: (process.env.NEXT_PUBLIC_BASE_POSITION_MANAGER || "0x4b2c77d209d3405f41a037ec6c77f7f5b8e2ca80") as `0x${string}`,
+  universalRouter: (process.env.NEXT_PUBLIC_BASE_UNIVERSAL_ROUTER || "0x492e6456d9528771018deb9e87ef7750ef184104") as `0x${string}`,
+  poolSwapTest: (process.env.NEXT_PUBLIC_BASE_POOL_SWAP_TEST || "0x8b5bcc363dde2614281ad875bad385e0a785d3b9") as `0x${string}`,
+  quoter: (process.env.NEXT_PUBLIC_BASE_QUOTER || "0x4a6513c898fe1b2d0e78d3b0e0a4a151589b1cba") as `0x${string}`,
+  baseWeth: (process.env.NEXT_PUBLIC_BASE_WETH || "0x4200000000000000000000000000000000000006") as `0x${string}`,
+  permit2: (process.env.NEXT_PUBLIC_PERMIT2 || "0x000000000022D473030F116dDEE9F6B43aC78BA3") as `0x${string}`,
 } as const;
 
 // Wagmi config with RainbowKit
@@ -227,3 +235,110 @@ export const ERC20_ABI = [
     type: "function",
   },
 ] as const;
+
+// PoolSwapTest ABI for executing swaps on Uniswap V4
+export const POOL_SWAP_TEST_ABI = [
+  {
+    inputs: [
+      {
+        components: [
+          { name: "currency0", type: "address" },
+          { name: "currency1", type: "address" },
+          { name: "fee", type: "uint24" },
+          { name: "tickSpacing", type: "int24" },
+          { name: "hooks", type: "address" },
+        ],
+        name: "key",
+        type: "tuple",
+      },
+      {
+        components: [
+          { name: "zeroForOne", type: "bool" },
+          { name: "amountSpecified", type: "int256" },
+          { name: "sqrtPriceLimitX96", type: "uint160" },
+        ],
+        name: "params",
+        type: "tuple",
+      },
+      {
+        components: [
+          { name: "takeClaims", type: "bool" },
+          { name: "settleUsingBurn", type: "bool" },
+        ],
+        name: "testSettings",
+        type: "tuple",
+      },
+      { name: "hookData", type: "bytes" },
+    ],
+    name: "swap",
+    outputs: [{ name: "delta", type: "int256" }],
+    stateMutability: "payable",
+    type: "function",
+  },
+] as const;
+
+// V4 Quoter ABI for getting swap quotes
+export const QUOTER_ABI = [
+  {
+    inputs: [
+      {
+        components: [
+          { name: "exactCurrency", type: "address" },
+          { name: "path", type: "bytes" },
+          { name: "exactAmount", type: "uint128" },
+        ],
+        name: "params",
+        type: "tuple",
+      },
+    ],
+    name: "quoteExactInput",
+    outputs: [
+      { name: "amountOut", type: "uint256" },
+      { name: "gasEstimate", type: "uint256" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        components: [
+          {
+            components: [
+              { name: "currency0", type: "address" },
+              { name: "currency1", type: "address" },
+              { name: "fee", type: "uint24" },
+              { name: "tickSpacing", type: "int24" },
+              { name: "hooks", type: "address" },
+            ],
+            name: "poolKey",
+            type: "tuple",
+          },
+          { name: "zeroForOne", type: "bool" },
+          { name: "exactAmount", type: "uint128" },
+          { name: "sqrtPriceLimitX96", type: "uint160" },
+          { name: "hookData", type: "bytes" },
+        ],
+        name: "params",
+        type: "tuple",
+      },
+    ],
+    name: "quoteExactInputSingle",
+    outputs: [
+      { name: "amountOut", type: "uint256" },
+      { name: "gasEstimate", type: "uint256" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;
+
+// Pool key for our WETH/USDC pool with VelvetHook
+export const VELVET_POOL_KEY = {
+  // USDC < WETH by address, so USDC is currency0
+  currency0: CONTRACTS.baseUsdc,
+  currency1: CONTRACTS.baseWeth,
+  fee: 0x800000, // Dynamic fee flag (LPFeeLibrary.DYNAMIC_FEE_FLAG)
+  tickSpacing: 60, // Standard for 0.3% fee tier pools
+  hooks: CONTRACTS.hook,
+} as const;
