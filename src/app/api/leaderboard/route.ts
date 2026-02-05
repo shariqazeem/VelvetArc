@@ -60,9 +60,9 @@ const CACHE_TTL = 60000; // 1 minute
 
 async function buildLeaderboard(): Promise<Depositor[]> {
   try {
-    // Get all deposit events to find unique depositors
+    // Get deposit events - Arc RPC limits to 10k blocks, use 5k to be safe
     const currentBlock = await arcClient.getBlockNumber();
-    const fromBlock = currentBlock > BigInt(10000) ? currentBlock - BigInt(10000) : BigInt(0);
+    const fromBlock = currentBlock > BigInt(5000) ? currentBlock - BigInt(5000) : BigInt(0);
 
     const depositLogs = await arcClient.getLogs({
       address: VAULT_ADDRESS,

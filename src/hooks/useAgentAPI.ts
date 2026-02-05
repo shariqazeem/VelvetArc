@@ -71,6 +71,24 @@ export interface APIAgentState {
     lastYieldTimestamp: number;
     yieldHistory: { timestamp: number; amount: number; reason: string }[];
   };
+
+  // Real pool metrics from hook
+  poolMetrics: {
+    totalVolume: string;
+    swapCount: number;
+    lastSwapTime: number;
+    netFlow: string;
+    previousVolume: string;
+    volumeDelta: string;
+  };
+
+  // AI reasoning for transparency
+  aiReasoning: {
+    currentStrategy: string;
+    factors: string[];
+    confidence: number;
+    nextAction: string;
+  };
 }
 
 type AgentAction =
@@ -116,6 +134,20 @@ const DEFAULT_STATE: APIAgentState = {
     feesCaptured: 0,
     lastYieldTimestamp: Date.now(),
     yieldHistory: [],
+  },
+  poolMetrics: {
+    totalVolume: "0",
+    swapCount: 0,
+    lastSwapTime: 0,
+    netFlow: "0",
+    previousVolume: "0",
+    volumeDelta: "0",
+  },
+  aiReasoning: {
+    currentStrategy: "Initializing...",
+    factors: [],
+    confidence: 0,
+    nextAction: "Waiting for market data",
   },
 };
 

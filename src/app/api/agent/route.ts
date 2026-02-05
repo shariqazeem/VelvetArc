@@ -38,7 +38,11 @@ const HOOK_ABI = [
   { name: "totalLiquidity", type: "function", inputs: [], outputs: [{ name: "", type: "uint256" }], stateMutability: "view" },
   { name: "depositLiquidity", type: "function", inputs: [{ name: "amount", type: "uint256" }], outputs: [], stateMutability: "nonpayable" },
   { name: "volatilityLevel", type: "function", inputs: [], outputs: [{ name: "", type: "uint8" }], stateMutability: "view" },
+  { name: "getPoolMetrics", type: "function", inputs: [{ name: "poolId", type: "bytes32" }], outputs: [{ name: "totalVolume", type: "uint256" }, { name: "swapCount", type: "uint256" }, { name: "lastSwapTime", type: "uint256" }, { name: "netFlow", type: "int256" }], stateMutability: "view" },
 ] as const;
+
+// Pool ID for our USDC/WETH pool with VelvetHook
+const POOL_ID = "0x1d5fb52cdb30d77dda8c60a63325ff03fff145462dc7b49e824d5d6a6d9277e1" as `0x${string}`;
 
 const VAULT_ABI = [
   { name: "state", type: "function", inputs: [], outputs: [{ name: "", type: "uint8" }], stateMutability: "view" },
@@ -122,6 +126,24 @@ interface AgentState {
     lastYieldTimestamp: number;       // When yield was last calculated
     yieldHistory: { timestamp: number; amount: number; reason: string }[];
   };
+
+  // Real pool metrics from hook
+  poolMetrics: {
+    totalVolume: string;              // Total swap volume through pool
+    swapCount: number;                // Number of swaps
+    lastSwapTime: number;             // Last swap timestamp
+    netFlow: string;                  // Net flow direction
+    previousVolume: string;           // For delta calculation
+    volumeDelta: string;              // Volume since last check
+  };
+
+  // AI reasoning for transparency
+  aiReasoning: {
+    currentStrategy: string;
+    factors: string[];
+    confidence: number;
+    nextAction: string;
+  };
 }
 
 // Get agent address from private key
@@ -174,6 +196,20 @@ let agentState: AgentState = {
     feesCaptured: 0,
     lastYieldTimestamp: Date.now(),
     yieldHistory: [],
+  },
+  poolMetrics: {
+    totalVolume: "0",
+    swapCount: 0,
+    lastSwapTime: 0,
+    netFlow: "0",
+    previousVolume: "0",
+    volumeDelta: "0",
+  },
+  aiReasoning: {
+    currentStrategy: "Initializing...",
+    factors: [],
+    confidence: 0,
+    nextAction: "Waiting for market data",
   },
 };
 
@@ -301,6 +337,14 @@ async function fetchOnChainData() {
       functionName: "volatilityLevel",
     }).catch(() => 0);
 
+    // Read real pool metrics from hook
+    const poolMetrics = await baseClient.readContract({
+      address: HOOK_ADDRESS,
+      abi: HOOK_ABI,
+      functionName: "getPoolMetrics",
+      args: [POOL_ID],
+    }).catch(() => [BigInt(0), BigInt(0), BigInt(0), BigInt(0)] as const);
+
     // Read agent USDC balance on Base
     const agentUsdcBase = await baseClient.readContract({
       address: BASE_USDC,
@@ -352,6 +396,11 @@ async function fetchOnChainData() {
       vaultTotalShares: formatUnits(totalShares as bigint, 6),
       vaultDeployedCapital: formatUnits(deployedCapital as bigint, 6),
       vaultYieldEarned: formatUnits(yieldEarned as bigint, 6),
+      // Real pool metrics
+      poolTotalVolume: formatUnits(poolMetrics[0] as bigint, 18),
+      poolSwapCount: Number(poolMetrics[1]),
+      poolLastSwapTime: Number(poolMetrics[2]),
+      poolNetFlow: formatUnits(poolMetrics[3] as bigint, 18),
     };
   } catch (e) {
     console.error("On-chain data fetch failed:", e);
@@ -369,6 +418,10 @@ async function fetchOnChainData() {
       vaultTotalShares: "0",
       vaultDeployedCapital: "0",
       vaultYieldEarned: "0",
+      poolTotalVolume: "0",
+      poolSwapCount: 0,
+      poolLastSwapTime: 0,
+      poolNetFlow: "0",
     };
   }
 }
@@ -613,6 +666,24 @@ async function runAgentStep() {
 
     addLog("info", `Arc USDC: $${arcTotal.toFixed(2)} | Base USDC: $${baseTotal.toFixed(2)} | Hook fee: ${(onChain.hookFee / 100).toFixed(2)}%`);
 
+    // 2.5. Update real pool metrics
+    const previousVolume = parseFloat(agentState.poolMetrics.totalVolume);
+    const currentVolume = parseFloat(onChain.poolTotalVolume);
+    const volumeDelta = currentVolume - previousVolume;
+
+    agentState.poolMetrics = {
+      totalVolume: onChain.poolTotalVolume,
+      swapCount: onChain.poolSwapCount,
+      lastSwapTime: onChain.poolLastSwapTime,
+      netFlow: onChain.poolNetFlow,
+      previousVolume: agentState.poolMetrics.totalVolume,
+      volumeDelta: volumeDelta.toString(),
+    };
+
+    if (onChain.poolSwapCount > 0) {
+      addLog("info", `Pool: ${onChain.poolSwapCount} swaps | Volume: ${parseFloat(onChain.poolTotalVolume).toFixed(6)} ETH`);
+    }
+
     // 3. Update capital state based on where majority is
     agentState.capitalState = determineCapitalState(
       arcTotal,
@@ -629,41 +700,76 @@ async function runAgentStep() {
 
     addLog("decision", `Current fee: ${(currentFee / 100).toFixed(2)}% | Target fee: ${(targetFee / 100).toFixed(2)}%`);
 
-    // 5. Calculate yield and update performance metrics
+    // 5. Calculate yield from REAL swap volume
     const totalManaged = arcTotal + baseTotal;
     const now = Date.now();
     const timeSinceLastYield = now - agentState.performance.lastYieldTimestamp;
 
-    // Yield calculation: Higher fees = more yield captured from swaps
-    // Simulated swap volume based on liquidity and market activity
-    const simulatedHourlyVolume = totalManaged * 0.15; // 15% of TVL trades per hour
-    const hourFraction = timeSinceLastYield / (1000 * 60 * 60);
-    const volumeThisPeriod = simulatedHourlyVolume * hourFraction;
+    // Use REAL volume delta from pool metrics (converted to USD using ETH price)
+    const realVolumeDeltaETH = Math.abs(volumeDelta);
+    const realVolumeDeltaUSD = realVolumeDeltaETH * market.ethPrice;
     const feeRate = currentFee / 1000000; // Convert basis points to decimal
-    const yieldThisPeriod = volumeThisPeriod * feeRate;
+    const realYieldThisPeriod = realVolumeDeltaUSD * feeRate;
 
-    if (yieldThisPeriod > 0 && totalManaged > 0) {
-      agentState.performance.totalYieldGenerated += yieldThisPeriod;
-      agentState.performance.feesCaptured += yieldThisPeriod;
+    // Also calculate projected yield based on historical volume rate
+    const totalVolumeETH = parseFloat(onChain.poolTotalVolume);
+    const totalVolumeUSD = totalVolumeETH * market.ethPrice;
+    const poolAgeSeconds = onChain.poolLastSwapTime > 0 ? (Date.now() / 1000 - onChain.poolLastSwapTime) : 3600;
+    const hourlyVolumeRate = totalVolumeUSD / Math.max(poolAgeSeconds / 3600, 1);
+    const projectedDailyVolume = hourlyVolumeRate * 24;
+    const projectedDailyYield = projectedDailyVolume * feeRate;
+    const projectedAPY = totalManaged > 0 ? (projectedDailyYield / totalManaged) * 365 * 100 : 0;
+
+    if (realYieldThisPeriod > 0) {
+      agentState.performance.totalYieldGenerated += realYieldThisPeriod;
+      agentState.performance.feesCaptured += realYieldThisPeriod;
       agentState.performance.lastYieldTimestamp = now;
+      agentState.performance.currentAPY = projectedAPY;
 
-      // Calculate APY: (yield / principal) * periods per year
-      const periodsPerYear = (365 * 24 * 60 * 60 * 1000) / Math.max(timeSinceLastYield, 30000);
-      const periodReturn = yieldThisPeriod / totalManaged;
-      agentState.performance.currentAPY = periodReturn * periodsPerYear * 100;
-
-      if (yieldThisPeriod > 0.01) {
-        agentState.performance.yieldHistory.unshift({
-          timestamp: now,
-          amount: yieldThisPeriod,
-          reason: `${(feeRate * 100).toFixed(2)}% fee on $${volumeThisPeriod.toFixed(2)} volume`
-        });
-        if (agentState.performance.yieldHistory.length > 20) {
-          agentState.performance.yieldHistory = agentState.performance.yieldHistory.slice(0, 20);
-        }
-        addLog("success", `💰 Captured $${yieldThisPeriod.toFixed(4)} yield from trading fees`);
+      agentState.performance.yieldHistory.unshift({
+        timestamp: now,
+        amount: realYieldThisPeriod,
+        reason: `${(feeRate * 100).toFixed(2)}% fee on $${realVolumeDeltaUSD.toFixed(2)} real volume`
+      });
+      if (agentState.performance.yieldHistory.length > 20) {
+        agentState.performance.yieldHistory = agentState.performance.yieldHistory.slice(0, 20);
       }
+      addLog("success", `💰 Captured $${realYieldThisPeriod.toFixed(4)} from real swap fees`);
+    } else if (totalManaged > 0) {
+      // Update APY projection even without new swaps
+      agentState.performance.currentAPY = projectedAPY;
+      agentState.performance.lastYieldTimestamp = now;
     }
+
+    // 5.5 Build AI reasoning for transparency
+    const factors: string[] = [];
+    if (market.volatility === "HIGH" || market.volatility === "EXTREME") {
+      factors.push(`High volatility detected (${Math.abs(market.priceChange24h).toFixed(1)}% 24h change)`);
+    }
+    if (market.volatility === "LOW") {
+      factors.push(`Low volatility environment - optimizing for volume`);
+    }
+    factors.push(`Current fee: ${(currentFee / 100).toFixed(2)}% | Target: ${(targetFee / 100).toFixed(2)}%`);
+    factors.push(`Pool volume: $${totalVolumeUSD.toFixed(2)} (${onChain.poolSwapCount} swaps)`);
+    if (totalManaged > 0) {
+      factors.push(`Managing $${totalManaged.toFixed(2)} across chains`);
+    }
+
+    const strategyMap: Record<string, string> = {
+      "LOW": "Volume Maximization - Low fees attract traders, building TVL",
+      "MEDIUM": "Balanced Approach - Standard fees for steady yield",
+      "HIGH": "Yield Capture - Higher fees during volatile periods",
+      "EXTREME": "Protection Mode - Maximum fees, considering capital recall",
+    };
+
+    agentState.aiReasoning = {
+      currentStrategy: strategyMap[agentState.volatility] || "Analyzing...",
+      factors,
+      confidence: currentFee === targetFee ? 0.95 : 0.85,
+      nextAction: currentFee !== targetFee
+        ? `Adjusting fee from ${(currentFee/100).toFixed(2)}% to ${(targetFee/100).toFixed(2)}%`
+        : `Monitoring - fee optimal at ${(currentFee/100).toFixed(2)}%`,
+    };
 
     // 6. Execute fee update if needed
     if (currentFee !== targetFee) {
@@ -774,6 +880,20 @@ export async function POST(request: NextRequest) {
             feesCaptured: 0,
             lastYieldTimestamp: Date.now(),
             yieldHistory: [],
+          },
+          poolMetrics: {
+            totalVolume: "0",
+            swapCount: 0,
+            lastSwapTime: 0,
+            netFlow: "0",
+            previousVolume: "0",
+            volumeDelta: "0",
+          },
+          aiReasoning: {
+            currentStrategy: "Initializing...",
+            factors: [],
+            confidence: 0,
+            nextAction: "Waiting for market data",
           },
         };
         addLog("info", "Agent state reset");

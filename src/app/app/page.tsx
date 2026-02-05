@@ -21,7 +21,12 @@ import { Leaderboard } from "@/components/Leaderboard";
 import { FeeHistoryChart } from "@/components/FeeHistoryChart";
 import { HowItWorks } from "@/components/HowItWorks";
 import { SwapInterface } from "@/components/SwapInterface";
+import { AIReasoningPanel } from "@/components/AIReasoningPanel";
 import { YieldTracker } from "@/components/YieldTracker";
+import { CrossChainFlowPanel } from "@/components/CrossChainFlowPanel";
+import { PortfolioView } from "@/components/PortfolioView";
+import { StrategyExplainer } from "@/components/StrategyExplainer";
+import { OnChainProof } from "@/components/OnChainProof";
 import Head from "next/head";
 
 // Dynamic imports
@@ -329,46 +334,57 @@ export default function AppDashboard() {
       {/* 2. Left Column: Terminal + Events - Scrollable */}
       <div className="fixed top-[88px] left-6 bottom-24 z-30 w-[340px] pointer-events-auto space-y-4 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 pr-1">
         <TerminalLogs />
+
+        {/* Strategy Explainer - Shows what the agent is doing and why */}
+        <div className="glass-panel rounded-2xl p-5">
+          <StrategyExplainer
+            volatility={state.volatility}
+            currentFee={state.hookFee}
+            capitalState={state.capitalState}
+            ethPrice={state.ethPrice}
+            aiReasoning={state.aiReasoning}
+          />
+        </div>
+
+        {/* Portfolio Performance */}
+        <div className="glass-panel rounded-2xl p-5">
+          <PortfolioView
+            yieldHistory={state.performance.yieldHistory}
+            totalYield={state.performance.totalYieldGenerated}
+            feesCaptured={state.performance.feesCaptured}
+            currentAPY={state.performance.currentAPY}
+            protectionEvents={state.performance.protectionEvents}
+            protectionSavings={state.performance.protectionSavings}
+            iteration={state.iteration}
+            isRunning={state.isRunning}
+          />
+        </div>
+
         <EventFeed />
         <FeeHistoryChart />
       </div>
 
       {/* 3. Right Column: Capital, Performance, User Position - Scrollable */}
       <div className="fixed top-[88px] right-6 bottom-24 z-30 w-80 pointer-events-auto space-y-4 overflow-y-auto scrollbar-thin scrollbar-thumb-white/10 pr-1">
-        {/* Capital Allocation */}
-        <div className="glass-panel rounded-2xl p-5 hover:bg-black/40 transition-colors">
+        {/* Cross-Chain Capital Flow */}
+        <div className="glass-panel rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[10px] font-mono text-[var(--ghost)] uppercase tracking-wider">Capital Allocation</h3>
-            <div className={`w-2 h-2 rounded-full ${state.capitalState === "PROTECTED" ? "bg-blue-500" : "bg-emerald-500"} shadow-[0_0_10px_currentColor]`} />
+            <h3 className="text-[10px] font-mono text-[var(--ghost)] uppercase tracking-wider">Capital Flow</h3>
           </div>
+          <CrossChainFlowPanel
+            capitalState={state.capitalState}
+            arcBalance={totalArcBalance}
+            baseBalance={totalBaseBalance}
+            totalManaged={totalManagedAssets}
+            bridgeDecision={state.lastDecision}
+            transactions={state.transactions}
+            ethPrice={state.ethPrice}
+            volatility={state.volatility}
+          />
 
-          <div className="space-y-4">
-            {/* Arc */}
-            <div className="group">
-              <div className="flex justify-between items-end mb-1.5">
-                <span className="text-xs font-medium text-white/60 group-hover:text-blue-400 transition-colors">Circle Arc (Safe)</span>
-                <span className="font-mono text-xs">${totalArcBalance.toFixed(2)}</span>
-              </div>
-              <div className="h-[2px] w-full bg-white/5 overflow-hidden">
-                <div className="h-full bg-blue-500 transition-all duration-1000 ease-out" style={{ width: `${totalManagedAssets > 0 ? (totalArcBalance / totalManagedAssets) * 100 : 0}%` }} />
-              </div>
-            </div>
-
-            {/* Base */}
-            <div className="group">
-              <div className="flex justify-between items-end mb-1.5">
-                <span className="text-xs font-medium text-white/60 group-hover:text-purple-400 transition-colors">Base (Yield)</span>
-                <span className="font-mono text-xs">${totalBaseBalance.toFixed(2)}</span>
-              </div>
-              <div className="h-[2px] w-full bg-white/5 overflow-hidden">
-                <div className="h-full bg-purple-500 transition-all duration-1000 ease-out" style={{ width: `${totalManagedAssets > 0 ? (totalBaseBalance / totalManagedAssets) * 100 : 0}%` }} />
-              </div>
-            </div>
-
-            <div className="pt-3 border-t border-white/5 flex justify-between items-center">
-              <span className="text-[10px] text-[var(--ghost)] uppercase">Total AUM</span>
-              <span className="text-lg font-light tracking-tighter">${totalManagedAssets.toFixed(2)}</span>
-            </div>
+          <div className="pt-3 mt-4 border-t border-white/5 flex justify-between items-center">
+            <span className="text-[10px] text-[var(--ghost)] uppercase">Total AUM</span>
+            <span className="text-lg font-light tracking-tighter">${totalManagedAssets.toFixed(2)}</span>
           </div>
         </div>
 
@@ -436,11 +452,11 @@ export default function AppDashboard() {
 
               <button
                 onClick={() => setShowFunding(true)}
-                className="w-full h-12 bg-gradient-to-r from-emerald-500 to-blue-500 text-white font-bold text-sm tracking-wide rounded-xl hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(52,211,153,0.3)] transition-all flex items-center justify-center gap-2"
+                className="w-full h-11 bg-white text-black font-medium text-sm tracking-wide rounded-lg hover:bg-white/90 transition-all flex items-center justify-center gap-2"
               >
-                <span>{hasPosition ? "Add Funds" : "Deposit Now"}</span>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                <span>{hasPosition ? "Add Funds" : "Deposit"}</span>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                 </svg>
               </button>
             </>
@@ -462,6 +478,9 @@ export default function AppDashboard() {
 
         {/* Leaderboard - Real on-chain depositors */}
         <Leaderboard />
+
+        {/* On-Chain Proof - For hackathon judges */}
+        <OnChainProof />
       </div>
 
       {/* 4. Bottom-Left: Agent Status HUD */}
@@ -556,129 +575,160 @@ export default function AppDashboard() {
 
       {/* FUNDING MODAL OVERLAY */}
       {showFunding && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl animate-fade-up">
-          <div className="w-full max-w-2xl bg-[#0A0A0A] border border-white/10 rounded-3xl overflow-hidden shadow-2xl relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/90 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-[#0a0a0a] border border-white/10 rounded-2xl overflow-hidden">
 
-            {/* Modal Header */}
-            <div className="p-6 border-b border-white/5 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold">Treasury Deposit</h2>
-                <p className="text-sm text-[var(--ghost)]">Select funding method</p>
-              </div>
-              <button onClick={() => setShowFunding(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors">
-                ✕
+            {/* Modal Header - Minimal */}
+            <div className="p-5 border-b border-white/5 flex items-center justify-between">
+              <h2 className="text-base font-medium text-white">Fund Treasury</h2>
+              <button
+                onClick={() => setShowFunding(false)}
+                className="w-7 h-7 rounded-full flex items-center justify-center text-white/40 hover:text-white hover:bg-white/5 transition-all"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
 
-            {/* Modal Sub-nav */}
-            <div className="px-6 pt-6 pb-2">
-              <div className="flex gap-1 p-1 bg-white/5 rounded-xl">
+            {/* Tab Navigation - Clean */}
+            <div className="px-5 pt-4">
+              <div className="flex border-b border-white/5">
                 <button
                   onClick={() => setFundingTab("arc")}
-                  className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${fundingTab === "arc" ? "bg-white text-black shadow-lg" : "text-[var(--ghost)] hover:text-white"}`}
+                  className={`flex-1 pb-3 text-xs font-medium transition-all border-b-2 ${
+                    fundingTab === "arc"
+                      ? "text-white border-white"
+                      : "text-white/40 border-transparent hover:text-white/60"
+                  }`}
                 >
                   Deposit
                 </button>
                 <button
                   onClick={() => setFundingTab("swap")}
-                  className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${fundingTab === "swap" ? "bg-gradient-to-r from-purple-500 to-blue-500 text-white shadow-lg" : "text-[var(--ghost)] hover:text-white"}`}
+                  className={`flex-1 pb-3 text-xs font-medium transition-all border-b-2 ${
+                    fundingTab === "swap"
+                      ? "text-white border-white"
+                      : "text-white/40 border-transparent hover:text-white/60"
+                  }`}
                 >
                   Swap
                 </button>
                 <button
                   onClick={() => setFundingTab("lifi")}
-                  className={`flex-1 py-2.5 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${fundingTab === "lifi" ? "bg-white text-black shadow-lg" : "text-[var(--ghost)] hover:text-white"}`}
+                  className={`flex-1 pb-3 text-xs font-medium transition-all border-b-2 ${
+                    fundingTab === "lifi"
+                      ? "text-white border-white"
+                      : "text-white/40 border-transparent hover:text-white/60"
+                  }`}
                 >
-                  Bridge (LI.FI)
+                  Bridge
                 </button>
               </div>
             </div>
 
-            <div className="p-6 h-[480px] overflow-y-auto custom-scrollbar">
+            <div className="p-5 min-h-[400px] overflow-y-auto">
               {fundingTab === "arc" ? (
-                <div className="space-y-6">
-                  {/* Network Switchers */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <button onClick={() => switchChain?.({ chainId: ARC_TESTNET_CHAIN_ID })} className={`p-4 rounded-2xl border transition-all text-left ${isOnArc ? "bg-blue-500/10 border-blue-500/50" : "bg-white/5 border-white/5 hover:border-white/20"}`}>
-                      <div className="text-xs text-[var(--ghost)] mb-1">Network</div>
-                      <div className={`font-bold ${isOnArc ? "text-blue-400" : "text-white"}`}>Arc Testnet</div>
+                <div className="space-y-5">
+                  {/* Network Selection */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => switchChain?.({ chainId: ARC_TESTNET_CHAIN_ID })}
+                      className={`p-3 rounded-lg border text-left transition-all ${
+                        isOnArc
+                          ? "border-white/30 bg-white/5"
+                          : "border-white/5 hover:border-white/20"
+                      }`}
+                    >
+                      <div className="text-[10px] text-white/40 mb-1">Network</div>
+                      <div className={`text-sm font-medium ${isOnArc ? "text-white" : "text-white/60"}`}>
+                        Arc Testnet
+                      </div>
                     </button>
-                    <button onClick={() => switchChain?.({ chainId: BASE_SEPOLIA_CHAIN_ID })} className={`p-4 rounded-2xl border transition-all text-left ${isOnBaseSepolia ? "bg-purple-500/10 border-purple-500/50" : "bg-white/5 border-white/5 hover:border-white/20"}`}>
-                      <div className="text-xs text-[var(--ghost)] mb-1">Network</div>
-                      <div className={`font-bold ${isOnBaseSepolia ? "text-purple-400" : "text-white"}`}>Base Sepolia</div>
+                    <button
+                      onClick={() => switchChain?.({ chainId: BASE_SEPOLIA_CHAIN_ID })}
+                      className={`p-3 rounded-lg border text-left transition-all ${
+                        isOnBaseSepolia
+                          ? "border-white/30 bg-white/5"
+                          : "border-white/5 hover:border-white/20"
+                      }`}
+                    >
+                      <div className="text-[10px] text-white/40 mb-1">Network</div>
+                      <div className={`text-sm font-medium ${isOnBaseSepolia ? "text-white" : "text-white/60"}`}>
+                        Base Sepolia
+                      </div>
                     </button>
                   </div>
 
-                  <div className="text-xs text-center text-[var(--ghost)] bg-white/5 p-3 rounded-lg">
-                    Need testnet funds? <a href="https://faucet.circle.com/" target="_blank" className="text-white underline decoration-white/30 hover:decoration-white">Circle Faucet</a>
-                  </div>
+                  {/* Faucet Link */}
+                  <p className="text-[10px] text-white/30 text-center">
+                    Need testnet funds?{" "}
+                    <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer" className="text-white/50 hover:text-white underline">
+                      Circle Faucet
+                    </a>
+                  </p>
 
-                  {/* Transaction Status Banner */}
+                  {/* Transaction Status */}
                   {txStatus && (
-                    <div className={`p-4 rounded-xl border text-center text-sm font-medium animate-pulse ${
-                      depositStep === "success" ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400" :
-                      depositStep === "error" ? "bg-red-500/20 border-red-500/50 text-red-400" :
-                      "bg-blue-500/20 border-blue-500/50 text-blue-400"
+                    <div className={`p-3 rounded-lg text-center text-xs ${
+                      depositStep === "success" ? "bg-white/5 text-white" :
+                      depositStep === "error" ? "bg-white/5 text-white/60" :
+                      "bg-white/5 text-white/60"
                     }`}>
-                      {depositStep === "approving" && "⏳ "}
-                      {depositStep === "depositing" && "⏳ "}
-                      {depositStep === "success" && "✓ "}
-                      {depositStep === "error" && "✗ "}
                       {txStatus}
                     </div>
                   )}
 
-                  {/* Input Actions */}
+                  {/* Deposit Form */}
                   {isConnected ? (
-                    <div className="space-y-4 animate-fade-up">
+                    <div className="space-y-4">
                       {isOnArc && (
-                        <div className="group">
-                          <div className="flex justify-between items-center mb-2">
-                            <label className="text-xs font-medium ml-2">Deposit to Arc Vault</label>
-                            <span className="text-[10px] text-[var(--ghost)]">Balance: {parseFloat(usdcBalance).toFixed(2)} USDC</span>
+                        <div>
+                          <div className="flex justify-between items-center mb-3">
+                            <label className="text-xs text-white/60">Amount (USDC)</label>
+                            <span className="text-[10px] text-white/30">
+                              Balance: {parseFloat(usdcBalance).toFixed(2)}
+                            </span>
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-3">
                             <input
                               type="number"
                               value={depositAmount}
                               onChange={e => setDepositAmount(e.target.value)}
                               placeholder="0.00"
                               disabled={depositStep !== "idle"}
-                              className="flex-1 bg-transparent border-b border-white/20 px-4 py-3 text-xl font-mono focus:border-white focus:outline-none transition-colors placeholder:text-white/10 disabled:opacity-50"
+                              className="flex-1 h-11 bg-white/5 border border-white/10 rounded-lg px-4 text-sm font-mono text-white placeholder:text-white/20 focus:border-white/30 focus:outline-none disabled:opacity-50"
                             />
                             <button
                               onClick={handleArcDeposit}
                               disabled={isPending || isConfirming || !depositAmount || depositStep !== "idle"}
-                              className={`px-6 rounded-xl font-medium transition-all min-w-[100px] ${
-                                depositStep !== "idle"
-                                  ? "bg-blue-500/30 text-blue-400 cursor-wait"
-                                  : "bg-white/10 hover:bg-white text-white hover:text-black"
-                              }`}
+                              className="h-11 px-6 bg-white text-black text-sm font-medium rounded-lg hover:bg-white/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                             >
                               {depositStep === "approving" ? "Approving..." :
                                depositStep === "depositing" ? "Depositing..." :
-                               isPending ? "Confirm..." :
-                               isConfirming ? "Waiting..." :
+                               isPending || isConfirming ? "..." :
                                "Deposit"}
                             </button>
                           </div>
                         </div>
                       )}
                       {isOnBaseSepolia && (
-                        <div className="group">
-                          <label className="text-xs font-medium ml-2 mb-2 block">Transfer to Agent</label>
-                          <div className="flex gap-2">
+                        <div>
+                          <div className="flex justify-between items-center mb-3">
+                            <label className="text-xs text-white/60">Send to Agent (USDC)</label>
+                          </div>
+                          <div className="flex gap-3">
                             <input
                               type="number"
                               value={depositAmount}
                               onChange={e => setDepositAmount(e.target.value)}
                               placeholder="0.00"
-                              className="flex-1 bg-transparent border-b border-white/20 px-4 py-3 text-xl font-mono focus:border-white focus:outline-none transition-colors placeholder:text-white/10"
+                              className="flex-1 h-11 bg-white/5 border border-white/10 rounded-lg px-4 text-sm font-mono text-white placeholder:text-white/20 focus:border-white/30 focus:outline-none"
                             />
                             <button
                               onClick={handleBaseTransfer}
                               disabled={isPending || isConfirming || !depositAmount}
-                              className="px-6 rounded-xl bg-purple-500 hover:bg-purple-400 text-white font-medium transition-all"
+                              className="h-11 px-6 bg-white text-black text-sm font-medium rounded-lg hover:bg-white/90 disabled:opacity-50 transition-all"
                             >
                               {isPending ? "..." : "Send"}
                             </button>
@@ -687,19 +737,24 @@ export default function AppDashboard() {
                       )}
                     </div>
                   ) : (
-                    <div className="text-center py-10">
-                      <p className="text-[var(--ghost)]">Connect wallet to fund treasury</p>
+                    <div className="text-center py-8">
+                      <p className="text-sm text-white/40">Connect wallet to deposit</p>
                     </div>
                   )}
 
+                  {/* What happens next */}
+                  <div className="pt-4 border-t border-white/5">
+                    <p className="text-[10px] text-white/30 leading-relaxed">
+                      Deposits go to the Arc Vault. The agent autonomously manages capital between Arc (safe harbor) and Base (yield generation) based on market conditions.
+                    </p>
+                  </div>
                 </div>
               ) : fundingTab === "swap" ? (
                 <div className="space-y-4">
-                  {/* Swap Header */}
-                  <div className="text-center mb-4">
-                    <h3 className="text-lg font-bold">Swap with Dynamic Fees</h3>
-                    <p className="text-xs text-white/50 mt-1">
-                      Fees adjust automatically based on market volatility
+                  {/* Swap Description */}
+                  <div className="text-center pb-4 border-b border-white/5">
+                    <p className="text-xs text-white/50">
+                      Swap through VelvetHook with dynamic fees
                     </p>
                   </div>
 
@@ -707,9 +762,9 @@ export default function AppDashboard() {
                   {!isOnBaseSepolia && isConnected && (
                     <button
                       onClick={() => switchChain?.({ chainId: BASE_SEPOLIA_CHAIN_ID })}
-                      className="w-full p-4 rounded-xl bg-purple-500/20 border border-purple-500/30 text-purple-400 text-sm font-medium hover:bg-purple-500/30 transition-all"
+                      className="w-full p-3 rounded-lg border border-white/10 text-white/60 text-xs hover:bg-white/5 transition-all"
                     >
-                      Switch to Base Sepolia to Swap
+                      Switch to Base Sepolia to swap
                     </button>
                   )}
 
@@ -718,25 +773,20 @@ export default function AppDashboard() {
                     <SwapInterface
                       onSwapComplete={(txHash, feeApplied) => {
                         console.log("Swap completed:", txHash, "Fee:", feeApplied);
-                        runStep(); // Trigger agent to process the swap
+                        runStep();
                       }}
                     />
                   )}
 
-                  {/* Bounty Info */}
-                  <div className="mt-4 p-3 rounded-xl bg-gradient-to-r from-purple-500/10 to-blue-500/10 border border-purple-500/20">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-sm">🦄</span>
-                      <span className="text-xs font-bold text-purple-400">Uniswap V4 Agentic Finance</span>
-                    </div>
-                    <p className="text-[10px] text-white/60">
-                      This swap uses our VelvetHook which dynamically adjusts fees based on
-                      market volatility - demonstrating AI-controlled DeFi infrastructure.
+                  {/* Info */}
+                  <div className="pt-4 border-t border-white/5">
+                    <p className="text-[10px] text-white/30 leading-relaxed">
+                      Fees adjust automatically based on ETH volatility. Higher volatility = higher fees to protect liquidity providers.
                     </p>
                   </div>
                 </div>
               ) : (
-                <div className="w-full h-full flex items-center justify-center">
+                <div className="h-[400px]">
                   <LiFiWidget integrator="velvet-arc" config={widgetConfig} />
                 </div>
               )}

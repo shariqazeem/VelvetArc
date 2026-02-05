@@ -53,7 +53,7 @@ interface OnChainEvent {
   type: "DEPOSIT" | "WITHDRAW" | "FEE_UPDATE" | "VOLATILITY_CHANGE" | "CIRCUIT_BREAKER" | "LIQUIDITY";
   chain: "arc" | "base";
   timestamp: number;
-  blockNumber: bigint;
+  blockNumber: number; // Convert from BigInt to number for JSON serialization
   txHash: string;
   data: Record<string, unknown>;
 }
@@ -67,9 +67,9 @@ async function fetchVaultEvents(): Promise<OnChainEvent[]> {
   const events: OnChainEvent[] = [];
 
   try {
-    // Fetch last 1000 blocks of events
+    // Fetch last 5000 blocks of events (Arc RPC limits to 10k)
     const currentBlock = await arcClient.getBlockNumber();
-    const fromBlock = currentBlock > BigInt(1000) ? currentBlock - BigInt(1000) : BigInt(0);
+    const fromBlock = currentBlock > BigInt(5000) ? currentBlock - BigInt(5000) : BigInt(0);
 
     // Deposit events
     const deposits = await arcClient.getLogs({
@@ -86,7 +86,7 @@ async function fetchVaultEvents(): Promise<OnChainEvent[]> {
         type: "DEPOSIT",
         chain: "arc",
         timestamp: Number(block.timestamp) * 1000,
-        blockNumber: log.blockNumber,
+        blockNumber: Number(log.blockNumber),
         txHash: log.transactionHash,
         data: {
           user: log.args.user,
@@ -111,7 +111,7 @@ async function fetchVaultEvents(): Promise<OnChainEvent[]> {
         type: "WITHDRAW",
         chain: "arc",
         timestamp: Number(block.timestamp) * 1000,
-        blockNumber: log.blockNumber,
+        blockNumber: Number(log.blockNumber),
         txHash: log.transactionHash,
         data: {
           user: log.args.user,
@@ -136,7 +136,7 @@ async function fetchVaultEvents(): Promise<OnChainEvent[]> {
         type: "CIRCUIT_BREAKER",
         chain: "arc",
         timestamp: Number(block.timestamp) * 1000,
-        blockNumber: log.blockNumber,
+        blockNumber: Number(log.blockNumber),
         txHash: log.transactionHash,
         data: {
           triggeredBy: log.args.triggeredBy,
@@ -173,7 +173,7 @@ async function fetchHookEvents(): Promise<OnChainEvent[]> {
         type: "FEE_UPDATE",
         chain: "base",
         timestamp: Number(block.timestamp) * 1000,
-        blockNumber: log.blockNumber,
+        blockNumber: Number(log.blockNumber),
         txHash: log.transactionHash,
         data: {
           oldFee: Number(log.args.oldFee) / 100,
@@ -198,7 +198,7 @@ async function fetchHookEvents(): Promise<OnChainEvent[]> {
         type: "LIQUIDITY",
         chain: "base",
         timestamp: Number(block.timestamp) * 1000,
-        blockNumber: log.blockNumber,
+        blockNumber: Number(log.blockNumber),
         txHash: log.transactionHash,
         data: {
           from: log.args.from,

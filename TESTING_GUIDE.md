@@ -17,10 +17,13 @@
 ## Contract Addresses
 
 - **Vault (Arc)**: `0xC4a486Ef5dce0655983F7aF31682E1AE107995dB`
-- **Hook (Base)**: `0x9D5Ed0F872f95808EaFf9F709cA61db06Dc520d2`
-- **Agent Wallet**: `0x7468e32704F0daa837B7906b8ED040c2be2595Cf`
+- **Hook (Base)**: `0xa7b8467208f2416E7691F0a15B83DC108e8D90C0`
+- **Agent Wallet**: `0x55c3aBb091D1a43C3872718b3b8B3AE8c20B592E`
 - **USDC (Arc)**: `0x3600000000000000000000000000000000000000`
 - **USDC (Base Sepolia)**: `0x036CbD53842c5426634e7929541eC2318f3dCF7e`
+- **WETH (Base Sepolia)**: `0x4200000000000000000000000000000000000006`
+- **PoolManager (Base)**: `0x05E73354cFDd6745C338b50BcFDfA3Aa6fA03408`
+- **PoolSwapTest (Base)**: `0x8B5bcC363ddE2614281aD875bad385E0A785D3B9`
 
 ---
 
@@ -155,7 +158,54 @@ curl http://localhost:3000/api/agent | jq '.state.isRunning'
 ### Verify:
 ```bash
 # Check hook fee on Base Sepolia
-cast call 0x9D5Ed0F872f95808EaFf9F709cA61db06Dc520d2 "dynamicFee()(uint24)" --rpc-url https://sepolia.base.org
+cast call 0xa7b8467208f2416E7691F0a15B83DC108e8D90C0 "dynamicFee()(uint24)" --rpc-url https://sepolia.base.org
+```
+
+---
+
+## Test 7.5: Real Uniswap V4 Swap (Requires Liquidity)
+
+### Prerequisites:
+- Pool initialized (already done)
+- Pool has liquidity (needs USDC + WETH)
+- Connected wallet with tokens to swap
+
+### Adding Liquidity (One-time setup):
+```bash
+# 1. Get USDC from Circle Faucet: https://faucet.circle.com/
+#    Select "Base Sepolia" and "USDC"
+#    Enter your wallet address
+
+# 2. Wrap some ETH to WETH
+cast send 0x4200000000000000000000000000000000000006 "deposit()" \
+  --value 0.1ether \
+  --private-key YOUR_PRIVATE_KEY \
+  --rpc-url https://sepolia.base.org
+
+# 3. Add liquidity using forge script
+cd contracts
+forge script script/DeployWithMiner.s.sol:AddLiquiditySimple \
+  --rpc-url https://sepolia.base.org \
+  --broadcast \
+  --sig "run(address,int256)" 0xa7b8467208f2416E7691F0a15B83DC108e8D90C0 1000000000000000
+```
+
+### Steps:
+1. Open http://localhost:3000/app
+2. Connect wallet
+3. Click "Swap" tab in Fund modal
+4. Enter amount to swap
+5. Confirm transaction
+
+### Expected Results:
+- [ ] Swap executes through Uniswap V4
+- [ ] Dynamic fee from VelvetHook is applied
+- [ ] Transaction visible on BaseScan
+
+### Verify Swap:
+```bash
+# Check pool metrics after swap
+cast call 0xa7b8467208f2416E7691F0a15B83DC108e8D90C0 "getHookStatus()" --rpc-url https://sepolia.base.org
 ```
 
 ---
@@ -167,7 +217,7 @@ cast call 0x9D5Ed0F872f95808EaFf9F709cA61db06Dc520d2 "dynamicFee()(uint24)" --rp
 - Agent wallet has USDC on Base Sepolia
 
 ### Steps:
-1. Send USDC to agent wallet: `0x7468e32704F0daa837B7906b8ED040c2be2595Cf`
+1. Send USDC to agent wallet: `0x55c3aBb091D1a43C3872718b3b8B3AE8c20B592E`
 2. Start agent
 3. Agent should detect USDC and deploy
 
@@ -180,7 +230,7 @@ cast call 0x9D5Ed0F872f95808EaFf9F709cA61db06Dc520d2 "dynamicFee()(uint24)" --rp
 ### Verify:
 ```bash
 # Check hook liquidity
-cast call 0x9D5Ed0F872f95808EaFf9F709cA61db06Dc520d2 "totalLiquidity()(uint256)" --rpc-url https://sepolia.base.org
+cast call 0xa7b8467208f2416E7691F0a15B83DC108e8D90C0 "totalLiquidity()(uint256)" --rpc-url https://sepolia.base.org
 ```
 
 ---

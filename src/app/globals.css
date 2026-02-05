@@ -166,3 +166,172 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--whisper);
   border-radius: 4px;
 }
+
+/* Thin scrollbar variant */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ============================================
+   MOBILE RESPONSIVENESS
+   ============================================ */
+
+/* Glass panel variants for mobile */
+.glass-subtle {
+  background: rgba(10, 10, 10, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+}
+
+/* Fade up animation for modals */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.3s ease-out;
+}
+
+/* Noise animation for background texture */
+@keyframes noise {
+  0% { transform: translate(0, 0); }
+  10% { transform: translate(-5%, -5%); }
+  20% { transform: translate(-10%, 5%); }
+  30% { transform: translate(5%, -10%); }
+  40% { transform: translate(-5%, 15%); }
+  50% { transform: translate(-10%, 5%); }
+  60% { transform: translate(15%, 0); }
+  70% { transform: translate(0, 10%); }
+  80% { transform: translate(-15%, 0); }
+  90% { transform: translate(10%, 5%); }
+  100% { transform: translate(5%, 0); }
+}
+
+/* Mobile-first responsive layout */
+@media (max-width: 1024px) {
+  /* Hide fixed sidebars on tablet/mobile */
+  .fixed.left-6.top-\[88px\],
+  .fixed.right-6.top-\[88px\] {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    width: 100%;
+    max-width: 100%;
+    padding: 1rem;
+  }
+
+  /* Adjust orb size */
+  .orb-glow {
+    width: 400px;
+    height: 400px;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Smaller orb on mobile */
+  .orb-glow {
+    width: 300px;
+    height: 300px;
+  }
+
+  /* Stack modals better */
+  .fixed.inset-0.z-50 {
+    padding: 1rem;
+    overflow-y: auto;
+  }
+
+  /* Make panels full-width */
+  .glass-panel {
+    border-radius: 1rem;
+  }
+
+  /* Reduce font sizes */
+  .text-2xl {
+    font-size: 1.25rem;
+  }
+
+  .text-xl {
+    font-size: 1.125rem;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Extra small screens */
+  .glass-panel {
+    padding: 1rem;
+  }
+
+  /* Simplify header */
+  header {
+    padding: 0.75rem;
+  }
+
+  /* Hide non-essential elements */
+  .hidden-mobile {
+    display: none !important;
+  }
+}
+
+/* ============================================
+   INTERACTIVE STATES
+   ============================================ */
+
+/* Button hover states */
+button {
+  transition: all 0.2s ease;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Input focus states */
+input:focus {
+  outline: none;
+}
+
+/* Link hover effects */
+a {
+  transition: color 0.2s ease, opacity 0.2s ease;
+}
+
+/* Disable interactions when loading */
+.pointer-events-none {
+  pointer-events: none;
+}
+
+/* ============================================
+   PRINT STYLES (for screenshots)
+   ============================================ */
+
+@media print {
+  .glass-panel {
+    background: #111 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .fixed {
+    position: absolute !important;
+  }
+}
