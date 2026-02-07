@@ -9,7 +9,7 @@ import Link from "next/link";
 import { parseUnits } from "viem";
 import { CONTRACTS, ERC20_ABI, VAULT_ABI } from "@/lib/wagmi-config";
 import { useAgentAPI } from "@/hooks/useAgentAPI";
-import { useUserPosition } from "@/hooks/useContracts";
+import { useUserPosition, useVaultData, useWithdraw } from "@/hooks/useContracts";
 import { useENSIdentity, formatAddressOrENS } from "@/hooks/useENS";
 import { HeroDashboard } from "@/components/HeroDashboard";
 import { SponsorShowcase } from "@/components/SponsorShowcase";
@@ -34,11 +34,7 @@ export default function AppDashboard() {
     state,
     isLoading,
     startAgent,
-    stopAgent,
     runStep,
-    simulateHighVolatility,
-    simulateLowVolatility,
-    simulateExtremeVolatility,
     totalArcBalance,
     totalBaseBalance,
     totalManagedAssets,
@@ -46,16 +42,30 @@ export default function AppDashboard() {
 
   const [activeTab, setActiveTab] = useState<"overview" | "deposit" | "bridge" | "terminal">("overview");
   const [depositAmount, setDepositAmount] = useState("");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
   const [depositStep, setDepositStep] = useState<"idle" | "approving" | "depositing" | "success" | "error">("idle");
+  const [withdrawStep, setWithdrawStep] = useState<"idle" | "withdrawing" | "success" | "error">("idle");
   const [txStatus, setTxStatus] = useState<string>("");
 
-  const { shares, shareValue, usdcBalance, allowanceRaw, refetch: refetchPosition } = useUserPosition();
+  const { shares, sharesRaw, shareValue, usdcBalance, allowanceRaw, refetch: refetchPosition } = useUserPosition();
+  const { currentState, stateName } = useVaultData();
+  const { withdraw: executeWithdraw, isPending: isWithdrawPending, isSuccess: isWithdrawSuccess, error: withdrawError, reset: resetWithdraw } = useWithdraw();
   const { name: agentENSName } = useENSIdentity(state.agentAddress);
   const { name: userENSName } = useENSIdentity(userAddress);
   const agentDisplayName = formatAddressOrENS(state.agentAddress, agentENSName);
 
+  // Can withdraw only when vault is IDLE (0) or PROTECTED (4)
+  const canWithdraw = currentState === 0 || currentState === 4;
+
   const { writeContract, data: txHash, isPending, error: txError, reset: resetTx } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash: txHash });
+
+  // Auto-start agent on mount (runs autonomously)
+  useEffect(() => {
+    if (!state.isRunning) {
+      startAgent();
+    }
+  }, []);
 
   useEffect(() => {
     if (isConfirmed && depositStep === "approving") {
@@ -97,6 +107,36 @@ export default function AppDashboard() {
       }, 3000);
     }
   }, [txError, resetTx]);
+
+  // Handle withdraw success
+  useEffect(() => {
+    if (isWithdrawSuccess && withdrawStep === "withdrawing") {
+      setWithdrawStep("success");
+      setWithdrawAmount("");
+      refetchPosition();
+      setTimeout(() => {
+        setWithdrawStep("idle");
+        resetWithdraw();
+      }, 2000);
+    }
+  }, [isWithdrawSuccess, withdrawStep, refetchPosition, resetWithdraw]);
+
+  // Handle withdraw error
+  useEffect(() => {
+    if (withdrawError) {
+      setWithdrawStep("error");
+      setTimeout(() => {
+        setWithdrawStep("idle");
+        resetWithdraw();
+      }, 3000);
+    }
+  }, [withdrawError, resetWithdraw]);
+
+  const handleWithdraw = () => {
+    if (!withdrawAmount || parseFloat(withdrawAmount) <= 0) return;
+    setWithdrawStep("withdrawing");
+    executeWithdraw(withdrawAmount);
+  };
 
   const handleDeposit = () => {
     if (!depositAmount || parseFloat(depositAmount) <= 0) return;
@@ -168,47 +208,30 @@ export default function AppDashboard() {
       <div className="flex h-[calc(100vh-56px)]">
         {/* Sidebar */}
         <aside className="w-56 p-4 border-r border-white/5 flex flex-col">
-          {/* Agent */}
+          {/* Agent Status (read-only for users) */}
           <div className="mb-6">
-            <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Agent</div>
+            <div className="flex items-center gap-2 mb-3">
+              <div className="text-xs text-white/30 uppercase tracking-wider">Agent</div>
+              <div className={`w-1.5 h-1.5 rounded-full ${state.isRunning ? "bg-emerald-500 animate-pulse" : "bg-white/20"}`} />
+            </div>
             <div className="text-sm text-white/70 mb-1">{agentDisplayName}</div>
-            <div className="text-xs text-white/30 mb-4">Iteration {state.iteration}</div>
-
-            <div className="flex gap-2 mb-3">
-              <button
-                onClick={() => state.isRunning ? stopAgent() : startAgent()}
-                disabled={isLoading}
-                className={`flex-1 h-8 rounded text-xs font-medium transition-colors ${
-                  state.isRunning
-                    ? "bg-white/5 text-white/60 hover:bg-white/10"
-                    : "bg-white/10 text-white hover:bg-white/20"
-                }`}
-              >
-                {state.isRunning ? "Stop" : "Start"}
-              </button>
-              <button
-                onClick={() => runStep()}
-                disabled={isLoading}
-                className="flex-1 h-8 rounded bg-white/5 text-white/50 text-xs hover:bg-white/10 transition-colors"
-              >
-                Step
-              </button>
+            <div className="text-xs text-white/30 mb-2">
+              {state.isRunning ? `Active · Iteration ${state.iteration}` : "Standby"}
             </div>
 
-            <div className="flex gap-1">
-              {["Low", "High", "Ext"].map((v) => (
-                <button
-                  key={v}
-                  onClick={() => {
-                    if (v === "Low") simulateLowVolatility();
-                    if (v === "High") simulateHighVolatility();
-                    if (v === "Ext") simulateExtremeVolatility();
-                  }}
-                  className="flex-1 py-1 text-[10px] text-white/30 hover:text-white/50 transition-colors"
-                >
-                  {v}
-                </button>
-              ))}
+            {/* Vault Status */}
+            <div className="p-2 rounded-lg bg-white/5 border border-white/10">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-white/40">Vault Status</span>
+                <span className={`text-[10px] font-medium ${
+                  canWithdraw ? "text-emerald-400" : "text-amber-400"
+                }`}>
+                  {stateName}
+                </span>
+              </div>
+              <div className="text-[9px] text-white/30 mt-1">
+                {canWithdraw ? "Withdrawals enabled" : "Capital deployed - withdrawals locked"}
+              </div>
             </div>
           </div>
 
@@ -317,33 +340,56 @@ export default function AppDashboard() {
             )}
 
             {activeTab === "deposit" && (
-              <div className="max-w-sm mx-auto">
-                <h2 className="text-2xl font-light mb-8">Deposit</h2>
+              <div className="max-w-md mx-auto space-y-8">
+                {/* Your Position Summary */}
+                {isConnected && hasPosition && (
+                  <div className="p-6 rounded-2xl bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10">
+                    <div className="text-xs text-white/40 uppercase tracking-wider mb-4">Your Position</div>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <div className="text-3xl font-light">${parseFloat(shareValue).toFixed(2)}</div>
+                        <div className="text-xs text-white/40 mt-1">Current Value</div>
+                      </div>
+                      <div>
+                        <div className="text-3xl font-light text-emerald-400">
+                          +{state.performance?.currentAPY?.toFixed(1) || "0.0"}%
+                        </div>
+                        <div className="text-xs text-white/40 mt-1">Projected APY</div>
+                      </div>
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-white/5 text-xs text-white/30">
+                      {parseFloat(shares).toFixed(4)} shares · Earning from dynamic LP fees
+                    </div>
+                  </div>
+                )}
 
-                {!isConnected ? (
-                  <div className="text-center py-16">
-                    <p className="text-white/40 mb-4">Connect wallet to deposit</p>
-                    <button
-                      onClick={openConnectModal}
-                      className="px-6 py-2 bg-white text-black rounded text-sm hover:bg-white/90 transition-colors"
-                    >
-                      Connect
-                    </button>
-                  </div>
-                ) : !isOnArc ? (
-                  <div className="text-center py-16">
-                    <p className="text-white/40 mb-4">Switch to Arc Testnet</p>
-                    <button
-                      onClick={() => switchChain?.({ chainId: ARC_TESTNET_CHAIN_ID })}
-                      className="px-6 py-2 bg-white/10 text-white rounded text-sm hover:bg-white/20 transition-colors"
-                    >
-                      Switch Network
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    <div>
-                      <div className="flex justify-between text-xs text-white/30 mb-2">
+                {/* Deposit Section */}
+                <div>
+                  <h2 className="text-xl font-light mb-6">Deposit</h2>
+
+                  {!isConnected ? (
+                    <div className="text-center py-12 rounded-xl border border-white/10">
+                      <p className="text-white/40 mb-4">Connect wallet to deposit</p>
+                      <button
+                        onClick={openConnectModal}
+                        className="px-6 py-2 bg-white text-black rounded text-sm hover:bg-white/90 transition-colors"
+                      >
+                        Connect
+                      </button>
+                    </div>
+                  ) : !isOnArc ? (
+                    <div className="text-center py-12 rounded-xl border border-white/10">
+                      <p className="text-white/40 mb-4">Switch to Arc Testnet</p>
+                      <button
+                        onClick={() => switchChain?.({ chainId: ARC_TESTNET_CHAIN_ID })}
+                        className="px-6 py-2 bg-white/10 text-white rounded text-sm hover:bg-white/20 transition-colors"
+                      >
+                        Switch Network
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex justify-between text-xs text-white/30">
                         <span>Amount</span>
                         <span>Balance: {parseFloat(usdcBalance).toFixed(2)} USDC</span>
                       </div>
@@ -364,22 +410,95 @@ export default function AppDashboard() {
                           {depositStep !== "idle" ? txStatus : "Deposit"}
                         </button>
                       </div>
+                      <a
+                        href="https://faucet.circle.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block text-xs text-white/30 hover:text-white/50 transition-colors"
+                      >
+                        Get testnet USDC →
+                      </a>
                     </div>
+                  )}
+                </div>
 
-                    <p className="text-xs text-white/20">
-                      Deposits go to the Arc vault. The agent manages capital between Arc and Base based on volatility.
-                    </p>
+                {/* Withdraw Section */}
+                {isConnected && hasPosition && (
+                  <div>
+                    <h2 className="text-xl font-light mb-6">Withdraw</h2>
 
-                    <a
-                      href="https://faucet.circle.com/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block text-xs text-white/30 hover:text-white/50 transition-colors"
-                    >
-                      Get testnet USDC →
-                    </a>
+                    {!canWithdraw ? (
+                      <div className="p-6 rounded-xl border border-amber-500/20 bg-amber-500/5">
+                        <div className="flex items-center gap-2 text-amber-400 text-sm mb-2">
+                          <span>⏳</span>
+                          <span>Withdrawals Temporarily Locked</span>
+                        </div>
+                        <p className="text-xs text-white/40">
+                          Capital is currently deployed on Base for yield generation.
+                          Withdrawals will be available when capital returns to the vault.
+                          Current status: <span className="text-amber-400">{stateName}</span>
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="flex justify-between text-xs text-white/30">
+                          <span>Shares to Withdraw</span>
+                          <button
+                            onClick={() => setWithdrawAmount(shares)}
+                            className="text-white/50 hover:text-white/70"
+                          >
+                            Max: {parseFloat(shares).toFixed(4)}
+                          </button>
+                        </div>
+                        <div className="flex gap-3">
+                          <input
+                            type="number"
+                            value={withdrawAmount}
+                            onChange={(e) => setWithdrawAmount(e.target.value)}
+                            placeholder="0.00"
+                            disabled={withdrawStep !== "idle"}
+                            className="flex-1 h-12 bg-white/5 border border-white/10 rounded px-4 text-lg font-mono focus:border-white/30 focus:outline-none disabled:opacity-50"
+                          />
+                          <button
+                            onClick={handleWithdraw}
+                            disabled={isWithdrawPending || !withdrawAmount || withdrawStep !== "idle"}
+                            className="h-12 px-6 bg-white/10 text-white rounded text-sm font-medium hover:bg-white/20 disabled:opacity-50 transition-colors"
+                          >
+                            {withdrawStep === "withdrawing" ? "Withdrawing..." :
+                             withdrawStep === "success" ? "Success!" :
+                             withdrawStep === "error" ? "Failed" : "Withdraw"}
+                          </button>
+                        </div>
+                        <p className="text-xs text-white/20">
+                          Withdraw your shares + earned yield. Value includes fees captured during your deposit period.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
+
+                {/* How It Works */}
+                <div className="p-6 rounded-xl bg-white/[0.02] border border-white/5">
+                  <div className="text-xs text-white/40 uppercase tracking-wider mb-4">How You Earn</div>
+                  <div className="space-y-3 text-xs text-white/50">
+                    <div className="flex items-start gap-3">
+                      <span className="text-white/30">1.</span>
+                      <span>Deposit USDC → Receive vault shares proportionally</span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="text-white/30">2.</span>
+                      <span>Agent deploys capital to Uniswap V4 pool on Base</span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="text-white/30">3.</span>
+                      <span>Dynamic fees capture premium during high volatility</span>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="text-white/30">4.</span>
+                      <span>Withdraw anytime (when vault is IDLE) with your share of fees</span>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
