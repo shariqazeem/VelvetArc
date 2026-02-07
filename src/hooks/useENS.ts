@@ -1,6 +1,6 @@
 "use client";
 
-import { useEnsName, useEnsAddress, useEnsAvatar } from "wagmi";
+import { useEnsName, useEnsAddress, useEnsAvatar, useEnsText } from "wagmi";
 import { mainnet } from "wagmi/chains";
 
 /**
@@ -78,6 +78,43 @@ export function useENSIdentity(address: string | undefined) {
     avatar,
     isLoading: nameLoading || avatarLoading,
     error: nameError,
+  };
+}
+
+/**
+ * Get ENS text record
+ * Allows reading custom data stored in ENS (e.g., description, url, twitter)
+ */
+export function useENSText(name: string | undefined, key: string) {
+  const { data: text, isLoading } = useEnsText({
+    name: name,
+    key: key,
+    chainId: mainnet.id,
+  });
+
+  return {
+    text: text ?? null,
+    isLoading,
+  };
+}
+
+/**
+ * Get multiple ENS text records for an agent profile
+ * Used to display rich agent information from ENS
+ */
+export function useENSProfile(name: string | undefined) {
+  const { text: description } = useENSText(name, "description");
+  const { text: url } = useENSText(name, "url");
+  const { text: twitter } = useENSText(name, "com.twitter");
+  const { text: github } = useENSText(name, "com.github");
+  const { text: strategy } = useENSText(name, "velvet.strategy"); // Custom record for agent strategy
+
+  return {
+    description,
+    url,
+    twitter,
+    github,
+    strategy,
   };
 }
 

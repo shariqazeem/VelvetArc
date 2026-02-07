@@ -17,6 +17,7 @@ import { YellowTerminal } from "@/components/YellowTerminal";
 import { LiFiBridgePanel } from "@/components/LiFiBridgePanel";
 import { StrategyExplainer } from "@/components/StrategyExplainer";
 import { TransactionHistory } from "@/components/TransactionHistory";
+import { CrossChainIntelligence } from "@/components/CrossChainIntelligence";
 
 const VelvetOrb = dynamic(
   () => import("@/components/VelvetOrb").then((mod) => mod.VelvetOrb),
@@ -305,6 +306,11 @@ export default function AppDashboard() {
                       hasENS={!!agentENSName}
                     />
                   </div>
+                </div>
+
+                {/* Cross-Chain Intelligence (LI.FI SDK) */}
+                <div className="pt-8 border-t border-white/5">
+                  <CrossChainIntelligence />
                 </div>
 
                 {/* Transaction History */}
