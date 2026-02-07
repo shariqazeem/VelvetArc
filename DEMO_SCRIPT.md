@@ -1,202 +1,204 @@
 # Velvet Arc - Demo Video Script
 
 **Duration**: 2:30 - 2:50 minutes
-**Format**: Facecam + Screen recording
-**Goal**: Make judges understand WHY this wins, not just WHAT it does
+**Format**: Facecam + Screen share side by side OR picture-in-picture
+**Style**: Show and explain simultaneously — not separate sections
 
 ---
 
-## PRE-RECORDING CHECKLIST
+## BEFORE RECORDING
 
-Before you hit record:
-
-1. Open `velvet-arc.vercel.app/app` — let agent run for 30 seconds first
-2. Have Basescan tab ready with a recent transaction
-3. Clear browser console (looks cleaner)
-4. Good lighting on your face
-5. Speak with ENERGY — you built this during Basant while others flew kites!
+1. Open `velvet-arc.vercel.app/app` in browser
+2. Open Basescan in another tab: `https://sepolia.basescan.org/address/0x9D5Ed0F872f95808EaFf9F709cA61db06Dc520d2`
+3. Let dashboard load for 10 seconds so agent starts
+4. Have wallet ready but DON'T connect yet (you'll do it live)
 
 ---
 
-## [0:00 - 0:15] THE HOOK — Start Strong
+## [0:00 - 0:12] INTRO — Problem + Solution
 
-**[Facecam - Look directly at camera, confident]**
+**[Facecam, look at camera]**
 
-> "LPs lose money in volatile markets. Static fees can't adapt. By the time you react manually, the opportunity is gone.
+> "LPs use static fees that can't adapt to market conditions. When volatility spikes, they're underpriced. When it's calm, they're overpriced.
 >
-> I built Velvet Arc — a fully autonomous agent that protects your capital by adjusting Uniswap V4 fees in real-time. No buttons. No intervention. Just deploy and let it work.
->
-> Let me show you."
+> I built Velvet Arc — an autonomous agent that adjusts Uniswap V4 hook fees in real-time based on volatility. Let me show you."
 
-**[Quick transition to screen — don't linger on facecam]**
+**[Transition to screen share — dashboard already open]**
 
 ---
 
-## [0:15 - 0:45] THE DASHBOARD — Prove It's Real
+## [0:12 - 0:45] DASHBOARD TOUR — Show While Explaining
 
-**[Screen: velvet-arc.vercel.app/app — Overview tab]**
+**[Screen: Dashboard is open, point as you talk]**
 
-> "This is the dashboard. First thing you'll notice — there's no 'Start Agent' button.
+> "This is the dashboard. The agent is already running — see this green dot? It started automatically when the page loaded. No start button. Fully autonomous.
 >
-> **[Point to sidebar: "Agent" section with green dot]**
-> The agent runs autonomously. It started the moment you opened this page. See iteration count increasing? That's real.
+> **[Point to ETH price area]**
+> It's fetching live ETH price — right now $[read the price].
 >
-> **[Point to HeroDashboard section]**
-> Right now it's monitoring ETH at $[X]. Volatility is [LOW/MEDIUM/HIGH]. Based on that, it set the hook fee to [X]%.
+> **[Point to volatility indicator]**
+> Based on 24-hour movement, volatility is [LOW/MEDIUM/HIGH].
 >
-> **[Point to Transaction History]**
-> Every decision is an on-chain transaction. Let me prove it—
+> **[Point to Hook Fee display]**
+> And here's the key — the current hook fee is [X]%. This is reading directly from the Uniswap V4 hook contract on Base Sepolia.
 >
-> **[Click a transaction hash → Basescan opens]**
-> Real transaction. Real block. This isn't a simulation."
-
-**[Pause 1 second on Basescan to let it sink in]**
+> **[Point to iteration count in sidebar]**
+> Every 30 seconds, the agent runs another cycle. You can see we're on iteration [X]."
 
 ---
 
-## [0:45 - 1:10] UNISWAP V4 — The Core Innovation
+## [0:45 - 1:05] PROVE IT'S REAL — Basescan
 
-**[Screen: Back to dashboard, point to Strategy Explainer panel]**
+**[Switch to Basescan tab you prepared]**
 
-> "Here's the magic — Uniswap V4 hooks.
+> "But is this actually on-chain? Let me prove it.
 >
-> **[Point to fee tier display]**
-> Traditional LPs use static 0.3% fees. Velvet Arc controls a V4 hook that adjusts fees dynamically — from 0.01% in calm markets to 1% during chaos.
+> **[You're now on Basescan showing the hook contract]**
+> This is the VelvetHook contract on Base Sepolia. Look at these transactions —
 >
-> **[Point to volatility level]**
-> Low volatility? Low fees attract more volume. High volatility? High fees capture premium from traders who NEED liquidity right now.
+> **[Point to recent transactions list]**
+> Each one is an `updateDynamicFee` call from the agent. Real transactions, real blocks, real gas paid.
 >
-> **[Point to 'On-Chain' badge]**
-> This reads directly from the deployed hook contract on Base Sepolia. Every 30 seconds, the agent evaluates and updates if needed.
->
-> The result? LPs earn more because fees match market conditions automatically."
+> **[Click on one transaction to open details]**
+> See? Method: updateDynamicFee. The agent signed and submitted this. Not simulated."
+
+**[Go back to dashboard]**
 
 ---
 
-## [1:10 - 1:35] CIRCLE ARC — The Safety Net
+## [1:05 - 1:30] CONNECT WALLET — Live Demo
 
-**[Screen: Click "Deposit" tab in sidebar]**
+**[Screen: Back on dashboard]**
 
-> "But what about extreme volatility? That's where Circle Arc comes in.
+> "Now let me show the user side. I'll connect my wallet.
 >
-> **[Point to vault section]**
-> Users deposit USDC into this vault on Arc — Circle's RWA-backed chain. It's the safe harbor.
+> **[Click Connect button → RainbowKit modal opens]**
 >
-> **[Point to vault status]**
-> When volatility is normal, the agent deploys capital to Base for yield. But if volatility goes EXTREME — over 10% — the agent triggers a circuit breaker and retreats everything back to Arc.
+> **[Connect your wallet — do this live]**
 >
-> **[Point to deposit/withdraw UI]**
-> Full functionality. Connect wallet, deposit USDC, get shares. Withdraw anytime the vault is idle.
+> **[Once connected, switch to Arc Testnet if prompted]**
 >
-> Arc is the bunker. Base is the battlefield. The agent decides when to fight and when to retreat."
+> Connected. Now I'm on Arc Testnet — that's Circle's chain.
+>
+> **[Click 'Deposit' tab in sidebar]**
+>
+> This is where users deposit USDC into the vault.
+>
+> **[Point to the deposit form]**
+> Enter amount, approve, deposit. You get shares representing your position.
+>
+> **[Point to vault status in sidebar]**
+> The vault shows current state — IDLE means withdrawals are open. When the agent deploys capital, it locks temporarily."
 
 ---
 
-## [1:35 - 1:55] YELLOW + LI.FI — Instant & Cross-Chain
+## [1:30 - 1:50] THE STRATEGY — Why This Works
 
-**[Screen: Click "Terminal" tab → Yellow Network]**
+**[Screen: Click back to 'Overview' tab]**
 
-> "For payments between chains, we integrated Yellow Network state channels.
+> **[Point to Strategy Explainer panel]**
+> Here's the logic. When volatility is LOW, the agent sets low fees — around 0.05% — to attract trading volume.
 >
-> **[Point to Yellow Terminal]**
-> This uses the nitrolite SDK with EIP-712 authentication. The agent can make instant off-chain payments — no gas, no block confirmations.
+> When volatility spikes HIGH, fees go up to 1%. Traders pay a premium because they NEED liquidity during chaos.
 >
-> **[Click "Bridge" tab → LI.FI widget]**
-> And for moving capital, LI.FI. Users can deposit from ANY chain. The widget finds optimal routes across bridges automatically.
+> And if volatility goes EXTREME — over 10% — the agent triggers a circuit breaker. It stops everything and retreats capital to Arc, the safe harbor.
 >
-> But we also use LI.FI programmatically—
->
-> **[Scroll to Cross-Chain Intelligence section if visible]**
-> The agent compares routes and recommends the best path before rebalancing. It's not just a widget — it's intelligence."
+> **[Point to the On-Chain badge if visible]**
+> All of this is controlled by the V4 hook. Not a backend. Not a database. On-chain logic."
 
 ---
 
-## [1:55 - 2:15] ENS — The Identity Layer
+## [1:50 - 2:10] OTHER INTEGRATIONS — Quick Hits
 
-**[Screen: Point to agent name in sidebar]**
+**[Screen: Click through tabs quickly]**
 
-> "One more thing — the agent isn't just an address.
+> "We also integrated three more sponsors.
 >
-> **[Point to 'velvet-agent.eth' or ENS display]**
-> It's velvet-agent.eth. We use ENS for human-readable identity.
+> **[Click 'Bridge' tab — show LI.FI widget]**
+> LI.FI for cross-chain deposits. Users can bridge USDC from any chain. The agent also uses LI.FI programmatically to compare routes.
 >
-> **[Point to any ENS resolution in UI]**
-> The dashboard resolves ENS names for both the agent and connected users. Even though we're on Arc and Base testnets, ENS queries go to Ethereum mainnet.
+> **[Click 'Terminal' tab — show Yellow Terminal]**
+> Yellow Network for state channel payments. This uses the nitrolite SDK — instant off-chain transfers, no gas.
 >
-> This matters because agents need identity. Not just 0x addresses — real, verifiable, on-chain identity with metadata."
+> **[Point to agent name in sidebar]**
+> And ENS. The agent isn't just an address — it resolves to velvet-agent.eth. Human-readable identity."
 
 ---
 
-## [2:15 - 2:35] THE CLOSE — Why This Wins
+## [2:10 - 2:35] CLOSING — The Vision
 
-**[Facecam - Look at camera, genuine]**
+**[Facecam — look at camera, genuine]**
 
-> "Let me be transparent: this runs on testnets. Arc Testnet, Base Sepolia. There's no real liquidity capturing real yield yet.
+> "Quick transparency: this is on testnets — Arc Testnet and Base Sepolia. No real liquidity yet.
 >
-> But the architecture is complete. Five sponsor integrations working together:
-> - Uniswap V4 for dynamic fees
-> - Circle Arc for capital protection
-> - Yellow Network for instant payments
-> - LI.FI for cross-chain intelligence
-> - ENS for agent identity
+> But the architecture is complete. Real contracts. Real transactions. Five sponsor integrations:
+> - Uniswap V4 dynamic hooks
+> - Circle Arc safe harbor
+> - Yellow Network state channels
+> - LI.FI cross-chain routing
+> - ENS agent identity
 >
-> Every fee update is a real transaction. Every decision is on-chain. The agent runs without me touching anything.
+> Post-hackathon, this goes to mainnet with real USDC. The agent starts earning real yield.
 >
-> **[Slight smile]**
->
-> Post-hackathon, this deploys to mainnet with real USDC. The agent starts earning. That's Velvet Arc.
->
-> Thanks for watching. Code's on GitHub."
-
-**[End - Don't drag it out]**
+> That's Velvet Arc. Code's on GitHub. Thanks for watching."
 
 ---
 
-## POWER PHRASES TO USE
+## KEY MOMENTS TO NAIL
 
-Use these exact phrases — they stick in judges' minds:
+| Timestamp | What to do | Why it matters |
+|-----------|------------|----------------|
+| 0:12 | Point to green dot | Proves agent is autonomous |
+| 0:50 | Switch to Basescan | **This is your proof moment** |
+| 1:10 | Connect wallet LIVE | Shows it's real, not screenshot |
+| 1:35 | Explain fee logic | Judges understand the value |
+| 2:25 | List all 5 sponsors | Reminds judges of all integrations |
 
-- "No buttons. No intervention."
-- "Let me prove it—" [then click to Basescan]
-- "This isn't a simulation."
+---
+
+## IF TRANSACTION HISTORY IS EMPTY
+
+Don't mention it. Use Basescan instead:
+
+> "Let me show you the on-chain proof directly on Basescan..."
+
+The hook contract at `0x9D5Ed0F872f95808EaFf9F709cA61db06Dc520d2` should have transactions from the agent.
+
+---
+
+## IF AGENT ISN'T UPDATING
+
+Say:
+> "The agent polls every 30 seconds. While we wait, let me show you the contract transactions on Basescan."
+
+---
+
+## IF WALLET WON'T CONNECT
+
+Skip wallet connect and say:
+> "The key thing is the agent runs independently of user wallets. It's already making decisions autonomously."
+
+---
+
+## POWER PHRASES
+
+- "No start button. Fully autonomous."
+- "Let me prove it." [switch to Basescan]
+- "Real transactions, real blocks, real gas paid."
 - "Arc is the bunker. Base is the battlefield."
 - "The architecture is complete."
-- "Five sponsors. Real transactions. Fully autonomous."
 
 ---
 
-## WHAT NOT TO SAY
+## FLOW SUMMARY
 
-- Don't say "I think" or "I hope" — speak with certainty
-- Don't apologize for testnet — frame it as "architecture complete, mainnet next"
-- Don't explain technical details judges won't care about
-- Don't read from script — internalize and speak naturally
+```
+INTRO (facecam) → DASHBOARD TOUR (explain while showing) → BASESCAN PROOF
+→ CONNECT WALLET LIVE → STRATEGY EXPLANATION → QUICK SPONSOR HITS → CLOSE (facecam)
+```
 
----
-
-## IF SOMETHING BREAKS
-
-**Agent not updating:**
-> "The agent polls every 30 seconds. Let me show you a recent transaction instead." [Click tx hash]
-
-**Yellow Terminal not connecting:**
-> "Yellow Network uses WebSocket to their clearnet. The integration is complete — here's a successful auth in the logs."
-
-**Page loads slow:**
-> "Loading live on-chain data from two networks..." [Use the pause to build anticipation]
-
-**Wallet won't connect:**
-> "For the demo, the agent runs independently of user wallets. Let me show you the autonomous side."
+Everything flows. You're never just talking without showing something.
 
 ---
 
-## FINAL TIPS
-
-1. **First 15 seconds decide everything** — Hook them immediately with the problem
-2. **Click that Basescan link** — It's your proof moment. Don't skip it.
-3. **Energy > Perfection** — Judges watch 50 videos. Be memorable.
-4. **End clean** — "Thanks for watching. Code's on GitHub." Done. Don't ramble.
-
----
-
-**You stayed home during Basant to build this. Now show them why it was worth it. You've got this.**
+**Go get it.**
