@@ -664,7 +664,7 @@ async function runAgentStep() {
     const arcTotal = parseFloat(onChain.agentArcUsdcBalance) + parseFloat(onChain.vaultAvailableBalance);
     const baseTotal = parseFloat(onChain.agentUsdcBalance) + parseFloat(onChain.hookLiquidity);
 
-    addLog("info", `Arc USDC: $${arcTotal.toFixed(2)} | Base USDC: $${baseTotal.toFixed(2)} | Hook fee: ${(onChain.hookFee / 100).toFixed(2)}%`);
+    addLog("info", `Arc USDC: $${arcTotal.toFixed(2)} | Base USDC: $${baseTotal.toFixed(2)} | Hook fee: ${(onChain.hookFee / 10000).toFixed(2)}%`);
 
     // 2.5. Update real pool metrics
     const previousVolume = parseFloat(agentState.poolMetrics.totalVolume);

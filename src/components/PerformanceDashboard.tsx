@@ -62,7 +62,7 @@ export function PerformanceDashboard() {
             {performance.currentAPY > 0 ? `${performance.currentAPY.toFixed(1)}%` : "—"}
           </div>
           <div className="text-[9px] text-white/40 mt-1">
-            Based on {(state.hookFee / 100).toFixed(2)}% fee tier
+            Based on {(state.hookFee / 10000).toFixed(2)}% fee tier
           </div>
         </div>
 

@@ -64,7 +64,7 @@ export function HowItWorks() {
       status: state.transactions.length > 0 ? "complete" : "pending",
       chain: "base",
       details: [
-        `Current fee: ${(state.hookFee / 100).toFixed(2)}%`,
+        `Current fee: ${(state.hookFee / 10000).toFixed(2)}%`,
         `Transactions sent: ${state.transactions.length}`,
         "Hook address: " + (process.env.NEXT_PUBLIC_HOOK_ADDRESS_BASE || "0x9D5Ed0F872f95808EaFf9F709cA61db06Dc520d2"),
         "Every fee update is a real Base Sepolia transaction",
@@ -219,6 +219,33 @@ export function HowItWorks() {
                     <p>• <strong>Base Sepolia:</strong> VelvetHook (Uniswap V4 dynamic fees)</p>
                     <p>• <strong>Agent:</strong> Monitors ETH volatility, updates fees on-chain</p>
                     <p>• <strong>Cross-chain:</strong> LI.FI integration for bridging</p>
+                  </div>
+                </div>
+
+                {/* Sponsor Integrations */}
+                <div className="mt-4 p-4 rounded-2xl bg-gradient-to-br from-purple-500/10 via-pink-500/10 to-yellow-500/10 border border-purple-500/20">
+                  <h3 className="font-bold text-purple-400 mb-3">🏆 Hackathon Sponsor Integrations</h3>
+                  <div className="grid grid-cols-1 gap-3 text-sm">
+                    <div className="flex items-start gap-3 p-2 rounded-lg bg-yellow-500/5 border border-yellow-500/10">
+                      <span className="text-yellow-400 font-bold">Yellow</span>
+                      <p className="text-white/60 text-xs">State channels via Nitrolite SDK - instant off-chain payments with on-chain settlement. Connect via /connect command in terminal.</p>
+                    </div>
+                    <div className="flex items-start gap-3 p-2 rounded-lg bg-pink-500/5 border border-pink-500/10">
+                      <span className="text-pink-400 font-bold">Uniswap</span>
+                      <p className="text-white/60 text-xs">V4 Hook with dynamic LP fees based on volatility (0.02% → 1.00%). Fee updates are real on-chain transactions.</p>
+                    </div>
+                    <div className="flex items-start gap-3 p-2 rounded-lg bg-blue-500/5 border border-blue-500/10">
+                      <span className="text-blue-400 font-bold">Circle Arc</span>
+                      <p className="text-white/60 text-xs">Safe Harbor vault on Arc L1 - RWA-backed USDC deposits with agent-controlled capital deployment.</p>
+                    </div>
+                    <div className="flex items-start gap-3 p-2 rounded-lg bg-purple-500/5 border border-purple-500/10">
+                      <span className="text-purple-400 font-bold">LI.FI</span>
+                      <p className="text-white/60 text-xs">Cross-chain bridge widget - swap and bridge from any chain to deposit or withdraw from the vault.</p>
+                    </div>
+                    <div className="flex items-start gap-3 p-2 rounded-lg bg-sky-500/5 border border-sky-500/10">
+                      <span className="text-sky-400 font-bold">ENS</span>
+                      <p className="text-white/60 text-xs">Human-readable agent identity (velvet-agent.eth) - resolves to agent address for transparency.</p>
+                    </div>
                   </div>
                 </div>
               </div>
