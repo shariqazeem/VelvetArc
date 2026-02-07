@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAgentAPI } from "@/hooks/useAgentAPI";
 import { YellowClient } from "@/lib/yellow/YellowClient";
 
@@ -66,6 +66,18 @@ export function TransactionHistory({
   const { state } = useAgentAPI();
   const [filter, setFilter] = useState<"all" | "arc" | "base" | "yellow">("all");
   const [yellowTxCount, setYellowTxCount] = useState(0);
+  const [newTxFlash, setNewTxFlash] = useState(false);
+  const prevTxCountRef = useRef(0);
+
+  // Flash on new transaction
+  useEffect(() => {
+    const currentCount = (state.transactions?.length || 0) + yellowTxCount;
+    if (prevTxCountRef.current > 0 && currentCount > prevTxCountRef.current) {
+      setNewTxFlash(true);
+      setTimeout(() => setNewTxFlash(false), 1000);
+    }
+    prevTxCountRef.current = currentCount;
+  }, [state.transactions, yellowTxCount]);
 
   // Track Yellow Network transactions
   useEffect(() => {
@@ -100,7 +112,22 @@ export function TransactionHistory({
       {/* Header */}
       {showTitle && (
         <div className="flex items-center justify-between">
-          <span className="text-xs text-white/30 uppercase tracking-wider">Transactions</span>
+          <div className="flex items-center gap-2">
+            <motion.span
+              animate={newTxFlash ? { scale: [1, 1.2, 1], color: ["rgba(255,255,255,0.3)", "#22c55e", "rgba(255,255,255,0.3)"] } : {}}
+              transition={{ duration: 0.5 }}
+              className="text-xs text-white/30 uppercase tracking-wider"
+            >
+              Transactions
+            </motion.span>
+            {state.isRunning && (
+              <motion.span
+                className="w-1.5 h-1.5 rounded-full bg-emerald-500"
+                animate={{ opacity: [0.4, 1, 0.4] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+              />
+            )}
+          </div>
           <div className="flex gap-1">
             {(["all", "arc", "base", "yellow"] as const).map((f) => (
               <button

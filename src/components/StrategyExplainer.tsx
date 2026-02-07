@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useMemo } from "react";
-import { useReadContract, useChainId } from "wagmi";
+import { useReadContract } from "wagmi";
 import { formatUnits } from "viem";
 
 // VelvetHook ABI (view functions only)
@@ -285,32 +285,21 @@ function FeeGauge({
 // Hook Status Badge - Minimal
 function HookStatusBadge({
   isConnected,
-  chainId,
 }: {
   isConnected: boolean;
-  chainId: number;
 }) {
-  const isCorrectChain = chainId === BASE_SEPOLIA_CHAIN_ID;
-
   if (!isConnected) {
     return (
-      <span className="text-[9px] text-white/30">
-        Simulated
-      </span>
-    );
-  }
-
-  if (!isCorrectChain) {
-    return (
-      <span className="text-[9px] text-white/40">
-        Wrong Chain
+      <span className="flex items-center gap-1 text-[9px] text-white/40">
+        <span className="w-1 h-1 rounded-full bg-white/30" />
+        API
       </span>
     );
   }
 
   return (
     <span className="flex items-center gap-1 text-[9px] text-white/50">
-      <span className="w-1 h-1 rounded-full bg-white/50 animate-pulse" />
+      <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
       On-Chain
     </span>
   );
@@ -328,7 +317,6 @@ export function StrategyExplainer({
 }: StrategyExplainerProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [showHookParams, setShowHookParams] = useState(true);
-  const chainId = useChainId();
 
   // Read hook data from contract
   const { data: onChainFee, isSuccess: feeSuccess } = useReadContract({
@@ -425,7 +413,7 @@ export function StrategyExplainer({
             <span className="text-[10px] text-white/40 font-mono uppercase">
               {volatility}
             </span>
-            <HookStatusBadge isConnected={hasLiveData} chainId={chainId} />
+            <HookStatusBadge isConnected={hasLiveData} />
           </div>
         </div>
         <p className="text-xs text-white/50 leading-relaxed">

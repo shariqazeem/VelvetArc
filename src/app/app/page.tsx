@@ -259,7 +259,6 @@ export default function AppDashboard() {
                   currentFee={state.hookFee}
                   isRunning={state.isRunning}
                   iteration={state.iteration}
-                  transactions={state.transactions}
                   lastDecision={state.lastDecision}
                 />
 
@@ -406,42 +405,74 @@ export default function AppDashboard() {
         <aside className="w-56 p-4 border-l border-white/5">
           <div className="space-y-6">
             <div>
-              <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Market</div>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="text-xs text-white/30 uppercase tracking-wider">Market</div>
+                {state.isRunning && (
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                )}
+              </div>
               <div className="space-y-3">
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-xs text-white/40">ETH</span>
-                  <span className="text-sm">${state.ethPrice.toLocaleString()}</span>
+                  <span className="text-sm font-mono">${state.ethPrice.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-xs text-white/40">24h</span>
-                  <span className={`text-sm ${state.priceChange24h >= 0 ? "text-white/60" : "text-white/40"}`}>
+                  <span className={`text-sm font-mono ${state.priceChange24h >= 0 ? "text-emerald-400/80" : "text-red-400/80"}`}>
                     {state.priceChange24h >= 0 ? "+" : ""}{state.priceChange24h.toFixed(2)}%
                   </span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-xs text-white/40">Volatility</span>
-                  <span className="text-sm">{state.volatility}</span>
+                  <span className={`text-sm font-medium ${
+                    state.volatility === "HIGH" ? "text-amber-400" :
+                    state.volatility === "EXTREME" ? "text-red-400" :
+                    "text-white/70"
+                  }`}>{state.volatility}</span>
                 </div>
               </div>
             </div>
 
             <div className="pt-6 border-t border-white/5">
-              <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Hook</div>
-              <div className="text-2xl font-light">{(state.hookFee / 10000).toFixed(2)}%</div>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="text-xs text-white/30 uppercase tracking-wider">Hook</div>
+                {state.transactions.length > 0 && (
+                  <span className="text-[9px] text-white/20">{state.transactions.length} tx</span>
+                )}
+              </div>
+              <div className={`text-2xl font-light ${
+                state.hookFee >= 5000 ? "text-amber-400" :
+                state.hookFee >= 10000 ? "text-red-400" : ""
+              }`}>
+                {(state.hookFee / 10000 * 100).toFixed(2)}%
+              </div>
               <div className="text-xs text-white/30">Dynamic fee</div>
             </div>
 
             <div className="pt-6 border-t border-white/5">
               <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Vault</div>
-              <div className="text-2xl font-light">${totalArcBalance.toFixed(2)}</div>
+              <div className="text-2xl font-light font-mono">${totalArcBalance.toFixed(2)}</div>
               <div className="text-xs text-white/30">Arc balance</div>
             </div>
 
             <div className="pt-6 border-t border-white/5">
               <div className="text-xs text-white/30 uppercase tracking-wider mb-3">Base</div>
-              <div className="text-2xl font-light">${totalBaseBalance.toFixed(2)}</div>
+              <div className="text-2xl font-light font-mono">${totalBaseBalance.toFixed(2)}</div>
               <div className="text-xs text-white/30">Deployed</div>
             </div>
+
+            {/* Live Indicator */}
+            {state.isRunning && (
+              <div className="pt-6 border-t border-white/5">
+                <div className="flex items-center gap-2 text-xs text-white/40">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Iteration {state.iteration}</span>
+                </div>
+                <div className="text-[10px] text-white/20 mt-1">
+                  Polling every 5s
+                </div>
+              </div>
+            )}
           </div>
         </aside>
       </div>

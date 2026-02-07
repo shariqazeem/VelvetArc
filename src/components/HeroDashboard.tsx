@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface HeroDashboardProps {
   capitalState: "PROTECTED" | "EARNING" | "CIRCUIT_BREAKER";
@@ -14,11 +14,6 @@ interface HeroDashboardProps {
   currentFee: number;
   isRunning: boolean;
   iteration: number;
-  transactions: Array<{
-    hash: string;
-    type: string;
-    timestamp: number;
-  }>;
   lastDecision: {
     action: string;
     reason: string;
@@ -38,11 +33,45 @@ export function HeroDashboard({
   currentFee,
   isRunning,
   iteration,
-  transactions,
   lastDecision,
 }: HeroDashboardProps) {
-  const [showAllTx, setShowAllTx] = useState(false);
-  const displayedTx = showAllTx ? transactions.slice(0, 8) : transactions.slice(0, 3);
+  const [countdown, setCountdown] = useState(5);
+  const [priceFlash, setPriceFlash] = useState(false);
+  const prevPriceRef = useRef(ethPrice);
+  const prevFeeRef = useRef(currentFee);
+  const [feeFlash, setFeeFlash] = useState(false);
+
+  // Countdown timer for next agent action
+  useEffect(() => {
+    if (!isRunning) {
+      setCountdown(5);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setCountdown(prev => prev <= 1 ? 5 : prev - 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isRunning]);
+
+  // Flash on price change
+  useEffect(() => {
+    if (prevPriceRef.current !== ethPrice && ethPrice > 0) {
+      setPriceFlash(true);
+      setTimeout(() => setPriceFlash(false), 500);
+    }
+    prevPriceRef.current = ethPrice;
+  }, [ethPrice]);
+
+  // Flash on fee change
+  useEffect(() => {
+    if (prevFeeRef.current !== currentFee && currentFee > 0) {
+      setFeeFlash(true);
+      setTimeout(() => setFeeFlash(false), 500);
+    }
+    prevFeeRef.current = currentFee;
+  }, [currentFee]);
 
   const arcPercent = totalManaged > 0 ? (arcBalance / totalManaged) * 100 : 100;
 
@@ -68,18 +97,31 @@ export function HeroDashboard({
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-3 mb-1">
-            <span className={`w-2 h-2 rounded-full ${
-              capitalState === "EARNING" ? "bg-white" :
-              capitalState === "CIRCUIT_BREAKER" ? "bg-white/50" : "bg-white/70"
-            }`} />
+            <motion.span
+              className={`w-2 h-2 rounded-full ${
+                capitalState === "EARNING" ? "bg-white" :
+                capitalState === "CIRCUIT_BREAKER" ? "bg-white/50" : "bg-white/70"
+              }`}
+              animate={isRunning ? { scale: [1, 1.3, 1], opacity: [1, 0.7, 1] } : {}}
+              transition={{ duration: 2, repeat: Infinity }}
+            />
             <h1 className="text-3xl font-light tracking-tight">{getStatusLabel()}</h1>
+            {isRunning && (
+              <span className="text-xs text-white/30 font-mono">
+                next: {countdown}s
+              </span>
+            )}
           </div>
           <p className="text-sm text-white/40 ml-5">{getStatusDescription()}</p>
         </div>
         <div className="text-right">
-          <div className="text-4xl font-light tracking-tight">
+          <motion.div
+            className="text-4xl font-light tracking-tight"
+            animate={isRunning ? { opacity: [1, 0.8, 1] } : {}}
+            transition={{ duration: 3, repeat: Infinity }}
+          >
             ${totalManaged.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
+          </motion.div>
           <div className="text-xs text-white/30 mt-1">Total Managed</div>
         </div>
       </div>
@@ -103,18 +145,40 @@ export function HeroDashboard({
       <div className="grid grid-cols-4 gap-6">
         <div>
           <div className="text-xs text-white/30 mb-1">ETH</div>
-          <div className="text-xl font-light">${ethPrice.toLocaleString()}</div>
+          <motion.div
+            className="text-xl font-light"
+            animate={priceFlash ? { color: ["#fff", "#22c55e", "#fff"] } : {}}
+            transition={{ duration: 0.5 }}
+          >
+            ${ethPrice.toLocaleString()}
+          </motion.div>
           <div className={`text-xs ${priceChange24h >= 0 ? "text-white/50" : "text-white/40"}`}>
             {priceChange24h >= 0 ? "+" : ""}{priceChange24h.toFixed(2)}%
           </div>
         </div>
         <div>
           <div className="text-xs text-white/30 mb-1">Volatility</div>
-          <div className="text-xl font-light">{volatility}</div>
+          <motion.div
+            key={volatility}
+            initial={{ scale: 1.1 }}
+            animate={{ scale: 1 }}
+            className={`text-xl font-light ${
+              volatility === "HIGH" ? "text-amber-400" :
+              volatility === "EXTREME" ? "text-red-400" : ""
+            }`}
+          >
+            {volatility}
+          </motion.div>
         </div>
         <div>
           <div className="text-xs text-white/30 mb-1">Hook Fee</div>
-          <div className="text-xl font-light">{(currentFee / 100).toFixed(2)}%</div>
+          <motion.div
+            className="text-xl font-light"
+            animate={feeFlash ? { color: ["#fff", "#f59e0b", "#fff"] } : {}}
+            transition={{ duration: 0.5 }}
+          >
+            {(currentFee / 10000 * 100).toFixed(2)}%
+          </motion.div>
         </div>
         <div>
           <div className="text-xs text-white/30 mb-1">Confidence</div>
@@ -126,63 +190,25 @@ export function HeroDashboard({
 
       {/* Last Decision */}
       {lastDecision && (
-        <div className="py-4 border-t border-white/5">
+        <motion.div
+          key={lastDecision.timestamp}
+          initial={{ opacity: 0, y: -5 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="py-4 border-t border-white/5"
+        >
           <div className="flex items-center gap-3">
+            <motion.span
+              className="w-1.5 h-1.5 rounded-full bg-white/50"
+              animate={{ opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+            />
             <span className="text-xs text-white/30 uppercase tracking-wider">Decision</span>
             <span className="text-sm text-white/70">{lastDecision.action}</span>
             <span className="text-xs text-white/30">·</span>
-            <span className="text-xs text-white/40">{lastDecision.reason}</span>
+            <span className="text-xs text-white/40 truncate max-w-md">{lastDecision.reason}</span>
           </div>
-        </div>
+        </motion.div>
       )}
-
-      {/* Transactions */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-white/30 uppercase tracking-wider">Transactions</span>
-          {transactions.length > 3 && (
-            <button
-              onClick={() => setShowAllTx(!showAllTx)}
-              className="text-xs text-white/30 hover:text-white/50"
-            >
-              {showAllTx ? "Show less" : `All (${transactions.length})`}
-            </button>
-          )}
-        </div>
-
-        <AnimatePresence mode="popLayout">
-          {displayedTx.length > 0 ? (
-            <div className="space-y-1">
-              {displayedTx.map((tx, i) => (
-                <motion.a
-                  key={tx.hash}
-                  href={`https://sepolia.basescan.org/tx/${tx.hash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="flex items-center justify-between py-2 px-3 -mx-3 rounded hover:bg-white/[0.02] transition-colors group"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-white/50">{tx.type.replace(/_/g, " ")}</span>
-                    <span className="text-xs text-white/20 font-mono">
-                      {tx.hash.slice(0, 8)}...{tx.hash.slice(-6)}
-                    </span>
-                  </div>
-                  <span className="text-xs text-white/20 group-hover:text-white/40">
-                    View ↗
-                  </span>
-                </motion.a>
-              ))}
-            </div>
-          ) : (
-            <div className="py-6 text-center text-xs text-white/20">
-              No transactions yet
-            </div>
-          )}
-        </AnimatePresence>
-      </div>
     </div>
   );
 }
